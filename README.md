@@ -4,12 +4,13 @@ A small stylized 3D browser game: explore Austin's Hyde Park as a dog. Vite + Ty
 
 ## Setup
 
+Requires Node 22 (pinned in `.nvmrc`).
+
 ```sh
+nvm use
 npm install
 npx playwright install chromium webkit   # once, for tests
 ```
-
-Node 18+ works; Node 20+ recommended.
 
 ## Run
 
