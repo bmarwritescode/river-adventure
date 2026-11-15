@@ -81,3 +81,12 @@ def fetch_osm(refresh: bool = False) -> dict:
                 print(f"[osm]   failed: {err}")
                 time.sleep(5 * (attempt + 1))
     raise RuntimeError(f"Overpass download failed: {last_err}")
+
+
+def osm_raw_meta() -> dict:
+    """Metadata stored alongside the cached download (fetch time, bbox, server)."""
+    if not RAW_FILE.exists():
+        return {}
+    import json as _json
+    with RAW_FILE.open() as f:
+        return _json.load(f).get("_meta", {})

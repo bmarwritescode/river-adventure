@@ -4,8 +4,16 @@ Options:
   --refresh          re-download OSM data (otherwise uses tools/map/cache/)
   --regen-boundary   re-derive tools/map/boundary.geojson from the street centerlines
   --regen-origin     re-pin the map origin from the current OSM data (moves every world coordinate!)
+  --skip-terrain     flat map, no USGS elevation download
+  --refresh-terrain  re-download elevation data
 
-Step 2A outputs: src/world/mapOrigin.json, tools/map/boundary.geojson, tools/map/out/preview.png
+Outputs:
+  src/world/mapOrigin.json        map origin (shared with the game)
+  tools/map/boundary.geojson      editable play-area boundary
+  tools/map/out/preview.png       preview image
+  public/map/index.json           tile index, boundary, terrain metadata
+  public/map/tiles/{i}_{j}.json   per-tile layer data
+  public/map/terrain.bin          heightmap (Int16 cm relative to the origin)
 """
 
 from __future__ import annotations
@@ -19,10 +27,13 @@ from shapely.prepared import prep
 
 import config
 from boundary import load_or_create_boundary, load_or_create_origin
-from osm_fetch import fetch_osm
+from layers import extract_layers
+from osm_fetch import fetch_osm, osm_raw_meta
 from osm_parse import OsmData
 from preview import render_preview
 from projection import Projector
+from terrain import build_terrain
+from tiles import TILE_SIZE, tile_range, write_tiles
 
 CAR_ROADS = {
     "motorway", "motorway_link", "trunk", "trunk_link", "primary", "primary_link", "secondary",
@@ -112,6 +123,8 @@ def main() -> None:
     ap.add_argument("--refresh", action="store_true")
     ap.add_argument("--regen-boundary", action="store_true")
     ap.add_argument("--regen-origin", action="store_true")
+    ap.add_argument("--skip-terrain", action="store_true", help="flat map (no USGS download)")
+    ap.add_argument("--refresh-terrain", action="store_true", help="re-download the DEM")
     args = ap.parse_args()
     t0 = time.time()
 
@@ -129,6 +142,43 @@ def main() -> None:
         print(f"  - {n}")
 
     render_preview(osm, b, config.OUT_DIR / "preview.png", stats)
+
+    # --- 2B: layers -> tiles (+ terrain) -------------------------------------------------------
+    area = b.polygon.buffer(config.MARGIN_M, join_style="mitre")
+    t1 = time.time()
+    layers = extract_layers(osm, area)
+    src = Counter(bd.height_source for bd in layers.buildings)
+    print(f"[layers] {len(layers.buildings)} buildings (height from: {dict(src)}), {len(layers.streets)} street "
+          f"pieces, {len(layers.trees)} trees, areas: "
+          + ", ".join(f"{k} {len(g.geoms)}" for k, g in layers.areas.items()) + f" ({time.time() - t1:.1f} s)")
+    for n in layers.notes:
+        print(f"  - {n}")
+
+    i0, j0, i1, j1 = tile_range(area.bounds)
+    terrain_meta = None
+    if not args.skip_terrain:
+        try:
+            terrain_meta = build_terrain(
+                proj, i0 * TILE_SIZE, j0 * TILE_SIZE, (i1 + 1) * TILE_SIZE, (j1 + 1) * TILE_SIZE,
+                config.MAP_DIR / "cache", config.PUBLIC_MAP_DIR / "terrain.bin", refresh=args.refresh_terrain)
+        except Exception as err:  # terrain is optional: the game falls back to flat ground
+            print(f"[terrain] FAILED ({err}); writing a flat map (getGroundHeight = 0)")
+    if terrain_meta is None:
+        (config.PUBLIC_MAP_DIR / "terrain.bin").unlink(missing_ok=True)
+
+    osm_meta = osm_raw_meta()
+    meta = {
+        "generated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "osmFetchedAt": osm_meta.get("fetched_at"),
+        "origin": {"lat": origin.lat, "lon": origin.lon, "utmEasting": round(proj.e0, 3),
+                   "utmNorthing": round(proj.n0, 3), "epsg": 32614},
+        "terrain": terrain_meta,
+    }
+    index = write_tiles(layers, b.polygon, area, config.PUBLIC_MAP_DIR, meta)
+    sz = index["_sizes"]
+    print(f"[tiles] {len(index['tiles'])} tiles of {TILE_SIZE:g} m -> {config.PUBLIC_MAP_DIR}  "
+          f"total {sz['tilesRaw'] / 1024:.0f} KB raw, {sz['tilesGzip'] / 1024:.0f} KB gzipped; "
+          f"largest {max(t['bytes'] for t in index['tiles']) / 1024:.0f} KB")
     print(f"[done] {time.time() - t0:.1f} s")
 
 

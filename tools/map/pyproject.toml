@@ -8,6 +8,7 @@ dependencies = [
   "shapely",
   "requests",
   "matplotlib",
+  "numpy",
 ]
 
 [tool.uv]

@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]  # repo root
 MAP_DIR = Path(__file__).resolve().parent
 OUT_DIR = MAP_DIR / "out"
+PUBLIC_MAP_DIR = ROOT / "public" / "map"  # game-readable output
 
 # Single source of truth for the map origin, shared with the game (src/world/geo.ts imports it).
 ORIGIN_FILE = ROOT / "src" / "world" / "mapOrigin.json"
