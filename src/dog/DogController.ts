@@ -6,11 +6,14 @@ import {
 import type { CollisionWorld } from '../world/collision';
 import { getGroundHeight } from '../world/ground';
 
-/** Exact state names — future .glb clips use the same names (plus 'sit'). */
-export const DOG_STATES = ['idle', 'walk', 'trot', 'run', 'sniff', 'jump'] as const;
+/** Exact state names; dog .glb clips use the same names (see dog/clips.ts). */
+export const DOG_STATES = ['idle', 'walk', 'trot', 'run', 'sniff', 'jump', 'sit', 'playBow'] as const;
 export type DogState = (typeof DOG_STATES)[number];
 
 export type Pace = 'walk' | 'trot' | 'run';
+
+/** Stationary actions the dog performs on command. */
+export type DogAction = 'none' | 'sit' | 'playBow';
 
 /** What the player (or later, an AI/cutscene) wants the dog to do this step. */
 export interface DogIntent {
@@ -21,6 +24,10 @@ export interface DogIntent {
   sniff: boolean;
   /** One-shot: true on the step the jump key was pressed. */
   jump: boolean;
+  /** One-shot: toggle sitting (sits once the dog has stopped; pressing again stands up). */
+  sit: boolean;
+  /** One-shot: play bow (stops first, holds for profile.behavior.playBowDuration). */
+  playBow: boolean;
 }
 
 export interface DogPose {
@@ -59,6 +66,13 @@ export class DogController {
 
   private readonly prev = { x: 0, y: 0, z: 0, heading: 0 };
   private timeSinceLanded = Infinity;
+  /** Current stationary action, and one requested but waiting for the dog to stop. */
+  private act: DogAction = 'none';
+  private pendingAct: DogAction = 'none';
+  private actTime = 0;
+  /** Seconds the dog can't move yet (e.g. getting up from a sit). */
+  private lockTime = 0;
+  private idleTime = 0;
 
   constructor(
     public profile: DogProfile,
@@ -89,9 +103,13 @@ export class DogController {
     const sniffing = intent.sniff && this.grounded;
     const control = this.grounded ? 1 : p.movement.airControl;
 
+    // --- Actions (sit / play bow): any movement, sniff or jump input cancels them ------
+    this.updateAction(dt, intent, hasInput || intent.sniff || intent.jump);
+    const locked = this.act !== 'none' || this.pendingAct !== 'none' || this.lockTime > 0;
+
     let targetSpeed = 0;
     let align = 1;
-    if (hasInput) {
+    if (hasInput && !locked) {
       mx /= mag; mz /= mag;
       const paceSpeed = sniffing ? p.speeds.sniff : p.speeds[intent.pace];
       const speedFrac = clamp(this.speed / p.speeds.run, 0, 1);
@@ -146,7 +164,7 @@ export class DogController {
     // --- Vertical: jump + gravity, glued to getGroundHeight when grounded -
     const ground = getGroundHeight(x, z);
     this.timeSinceLanded += dt;
-    if (this.grounded && intent.jump && this.timeSinceLanded >= p.jump.cooldown) {
+    if (this.grounded && intent.jump && !locked && this.timeSinceLanded >= p.jump.cooldown) {
       this.velocity.y = Math.sqrt(2 * g * p.jump.height);
       this.grounded = false;
     }
@@ -168,6 +186,7 @@ export class DogController {
     const s = p.speeds;
     let next: DogState;
     if (!this.grounded) next = 'jump';
+    else if (this.act !== 'none') next = this.act;
     else if (sniffing) next = 'sniff';
     else if (this.speed < IDLE_SPEED) next = 'idle';
     else if (this.speed < (s.walk + s.trot) / 2) next = 'walk';
@@ -188,6 +207,57 @@ export class DogController {
     out.z = lerp(this.prev.z, this.position.z, alpha);
     out.heading = lerpAngle(this.prev.heading, this.heading, alpha);
     return out;
+  }
+
+  /** The stationary action in progress ('none' while moving normally). */
+  get action(): DogAction {
+    return this.act;
+  }
+
+  private updateAction(dt: number, intent: DogIntent, wantsToMove: boolean): void {
+    const b = this.profile.behavior;
+    this.lockTime = Math.max(0, this.lockTime - dt);
+    if (this.act !== 'none') this.actTime += dt;
+
+    if (intent.sit) {
+      if (this.act === 'sit') this.endAction();
+      else this.pendingAct = 'sit';
+    }
+    if (intent.playBow && this.act !== 'playBow') {
+      if (this.act === 'sit') this.endAction(); // get up first, then bow
+      this.pendingAct = 'playBow';
+    }
+    if (wantsToMove && (this.act !== 'none' || this.pendingAct !== 'none')) {
+      this.endAction();
+      this.pendingAct = 'none';
+    }
+    if (this.act === 'playBow' && this.actTime >= b.playBowDuration) this.endAction();
+
+    // Start a requested action once the dog has (almost) stopped.
+    const stopped = this.grounded && this.speed < 0.3 && this.lockTime <= 0;
+    if (this.pendingAct !== 'none' && this.act === 'none' && stopped) {
+      this.startAction(this.pendingAct);
+      this.pendingAct = 'none';
+    }
+
+    // Sit down by itself after idling a while.
+    if (!wantsToMove && this.act === 'none' && this.pendingAct === 'none' && stopped) this.idleTime += dt;
+    else this.idleTime = 0;
+    if (b.autoSitAfter > 0 && this.idleTime >= b.autoSitAfter) this.startAction('sit');
+  }
+
+  private startAction(a: DogAction): void {
+    this.act = a;
+    this.actTime = 0;
+    this.idleTime = 0;
+  }
+
+  private endAction(): void {
+    if (this.act === 'sit') this.lockTime = this.profile.behavior.standUpTime;
+    else if (this.act === 'playBow') this.lockTime = this.profile.behavior.bowRecoverTime;
+    this.act = 'none';
+    this.actTime = 0;
+    this.idleTime = 0;
   }
 
   get groundSpeed(): number {

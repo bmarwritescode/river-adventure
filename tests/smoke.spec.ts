@@ -63,6 +63,26 @@ test('real map loads, dog spawns clear of buildings and moves', async ({ page },
   expect(errors, errors.join('\n')).toEqual([]);
 });
 
+test('rigged dog model loads with every clip; sit and play bow work', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/');
+  await gameReady(page);
+  await page.waitForFunction(() => ['model', 'failed'].includes(window.__game!.dog.visual), null, { timeout: 20_000 });
+  const dog = await page.evaluate(() => window.__game!.dog);
+  expect(dog.visual).toBe('model');
+  for (const clip of ['idle', 'walk', 'trot', 'run', 'sniff', 'jump', 'sit', 'playBow']) expect(dog.clips).toContain(clip);
+
+  const state = () => page.evaluate(() => window.__game!.dog.state);
+  await page.keyboard.press('KeyX');
+  await expect.poll(state).toBe('sit');
+  await page.keyboard.press('KeyX'); // stand up
+  await expect.poll(state).toBe('idle');
+  await page.keyboard.press('KeyB');
+  await expect.poll(state).toBe('playBow');
+  await expect.poll(state, { timeout: 5000 }).toBe('idle'); // bow ends by itself
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
 test('teleport to each corner: tiles load there and the boundary holds', async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   const errors = collectErrors(page);

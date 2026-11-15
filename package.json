@@ -5,12 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && tsc --noEmit -p tools/tsconfig.json && vite build",
     "preview": "vite preview",
     "test": "vitest run && playwright test",
     "map:build": "uv run --project tools/map python tools/map/build_map.py",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "dog:build": "tsx tools/dog/buildDogModel.ts"
   },
   "dependencies": {
     "earcut": "^3.2.4",
@@ -19,7 +20,9 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
+    "@types/node": "^22.20.5",
     "@types/three": "^0.187.0",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^7.3.8",
     "vitest": "^5.1.0"

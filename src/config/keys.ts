@@ -9,6 +9,8 @@ export const KEYS = {
   walkToggle: ['KeyC'],
   jump: ['Space'],
   sniff: ['KeyE'],
+  sit: ['KeyX'],
+  playBow: ['KeyB'],
   copyPosition: ['KeyP'],
   toggleGui: ['Backquote'],
   toggleTriggerZones: ['KeyT'],

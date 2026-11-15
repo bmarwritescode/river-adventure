@@ -59,6 +59,10 @@ export class TuningPanel {
     const jp = dog.addFolder('Jump');
     jp.add(profile.jump, 'height', 0.05, 2, 0.01).name('height (m)');
     jp.add(profile.jump, 'cooldown', 0, 1, 0.01).name('cooldown (s)');
+    const bh = dog.addFolder('Behavior').close();
+    bh.add(profile.behavior, 'autoSitAfter', 0, 60, 1).name('auto-sit after idle (s, 0=off)');
+    bh.add(profile.behavior, 'playBowDuration', 0.3, 6, 0.1).name('play bow hold (s)');
+    bh.add(profile.behavior, 'standUpTime', 0, 1.5, 0.05).name('stand-up time (s)');
     dog.add(profile, 'collisionRadius', 0.05, 1, 0.01).name('collision radius');
     const cam = dog.addFolder('Camera framing');
     cam.add(profile.camera, 'lookHeight', 0, 3, 0.01);
@@ -90,7 +94,7 @@ export class TuningPanel {
 
     const vis = gui.addFolder('Dog animation').close();
     for (const k of Object.keys(TUNING.visual) as (keyof typeof TUNING.visual)[]) {
-      vis.add(TUNING.visual, k, k.includes('Pitch') ? -2 : 0, k.startsWith('stride') ? 5 : k.startsWith('tail') ? 20 : 2, 0.005);
+      vis.add(TUNING.visual, k, k.includes('Pitch') ? -2 : 0, k.startsWith('stride') ? 6 : k.startsWith('tail') ? 20 : 2, 0.005);
     }
 
     const m = gui.addFolder('Map streaming').close();

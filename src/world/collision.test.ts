@@ -85,7 +85,7 @@ describe('DogController against real-world-like obstacles', () => {
   const run = (world: CollisionWorld, startX: number, startZ: number, heading: number, moveX: number, moveZ: number) => {
     const dog = new DogController(MAIN_DOG, world);
     dog.teleport(startX, startZ, heading);
-    const intent: DogIntent = { moveX, moveZ, pace: 'run', sniff: false, jump: false };
+    const intent: DogIntent = { moveX, moveZ, pace: 'run', sniff: false, jump: false, sit: false, playBow: false };
     let everInside = false;
     for (let i = 0; i < 60 * 4; i++) {
       dog.step(1 / 60, intent);
@@ -112,7 +112,7 @@ describe('DogController against real-world-like obstacles', () => {
     expect(everInside).toBe(false);
     // ...then turn away (north) and make sure the dog actually moves.
     const before = { ...dog.position };
-    const intent: DogIntent = { moveX: 0, moveZ: 1, pace: 'trot', sniff: false, jump: false };
+    const intent: DogIntent = { moveX: 0, moveZ: 1, pace: 'trot', sniff: false, jump: false, sit: false, playBow: false };
     for (let i = 0; i < 120; i++) dog.step(1 / 60, intent);
     expect(Math.hypot(dog.position.x - before.x, dog.position.z - before.z)).toBeGreaterThan(2);
   });

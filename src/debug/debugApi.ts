@@ -17,6 +17,10 @@ export interface GameDebugApi {
     /** Dog's collision circle overlaps a building/wall (should never be true). */
     readonly insideObstacle: boolean;
     readonly insideBoundary: boolean;
+    /** Which visual is showing: 'box' | 'loading' | 'model' | 'failed'. */
+    readonly visual: string;
+    /** Clip names in the loaded .glb (empty until loaded). */
+    readonly clips: string[];
   };
   readonly triggers: {
     readonly inside: string[];

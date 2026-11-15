@@ -47,7 +47,9 @@ export class Game {
   private readonly lastInside = { x: 0, z: 0 };
   private street: NearestStreet | null = null;
   private streetTimer = 0;
-  private readonly intent: DogIntent = { moveX: 0, moveZ: 0, pace: 'trot', sniff: false, jump: false };
+  private readonly intent: DogIntent = {
+    moveX: 0, moveZ: 0, pace: 'trot', sniff: false, jump: false, sit: false, playBow: false,
+  };
 
   constructor(private readonly container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -136,6 +138,8 @@ export class Game {
     this.intent.pace = pace;
     this.intent.sniff = inp.isDown('sniff');
     this.intent.jump = !this.frozen && inp.consumePressed('jump');
+    this.intent.sit = !this.frozen && inp.consumePressed('sit');
+    this.intent.playBow = !this.frozen && inp.consumePressed('playBow');
 
     this.dog.step(dt, this.intent);
 
@@ -244,7 +248,7 @@ export class Game {
     const help = document.createElement('div');
     help.className = 'help';
     help.textContent =
-      'WASD/arrows move · Shift run · Alt hold / C toggle walk · Space jump · E sniff · ' +
+      'WASD/arrows move · Shift run · Alt hold / C toggle walk · Space jump · E sniff · X sit · B play bow · ' +
       'click = mouse look (Esc releases) / drag · wheel zoom · P copy pos · T zones · M top-down · ` tuning';
     document.body.appendChild(help);
 
@@ -282,6 +286,8 @@ export class Game {
           speed: d.groundSpeed,
           insideObstacle: game.collision.overlapsCircle(d.position.x, d.position.z, d.profile.collisionRadius),
           insideBoundary: game.map.isInsideBoundary(d.position.x, d.position.z),
+          visual: game.dogVisual.kind,
+          clips: game.dogVisual.clipNames,
         };
       },
       get triggers() {

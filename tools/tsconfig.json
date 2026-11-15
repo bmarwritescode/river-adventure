@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["dog/**/*.ts", "../src/config/**/*.ts", "../src/dog/clips.ts"],
+  "exclude": ["../src/**/*.test.ts"]
+}

@@ -99,6 +99,12 @@ export const TUNING = {
     poseSharpness: 8,
     tailWagSpeed: 9,
     tailWagAmount: 0.45,
+    /** Animation cross-fade times (model dog), seconds. */
+    fadeDefault: 0.25,
+    fadeJump: 0.08,
+    /** Into / out of sit and play bow: the fade IS the sit-down / get-up motion. */
+    fadeIntoPose: 0.45,
+    fadeOutOfPose: 0.3,
   },
   lighting: {
     sunIntensity: 2.6,

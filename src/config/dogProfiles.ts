@@ -48,6 +48,16 @@ export interface DogJump {
   cooldown: number;
 }
 
+export interface DogBehavior {
+  /** Sit down by itself after this many idle seconds (0 = never). */
+  autoSitAfter: number;
+  /** How long a play bow is held, seconds. */
+  playBowDuration: number;
+  /** Seconds before the dog can move after getting up from a sit / a bow. */
+  standUpTime: number;
+  bowRecoverTime: number;
+}
+
 export interface DogCamera {
   /** Height above the dog's feet that the camera looks at, meters. */
   lookHeight: number;
@@ -69,12 +79,13 @@ export interface DogProfile {
   speeds: DogSpeeds;
   movement: DogMovement;
   jump: DogJump;
+  behavior: DogBehavior;
   /** Radius of the dog's collision circle in the XZ plane, meters. */
   collisionRadius: number;
   camera: DogCamera;
   /** Coat colors for placeholder/box visuals (hex). */
   colors: { coat: number; chest: number; lowerLegs: number; nose: number; eyes: number };
-  /** Path to the rigged .glb (Step 3+). Undefined = box placeholder. */
+  /** Rigged .glb under public/ (see CLAUDE.md "Dog model conventions"). Undefined = box placeholder. */
   modelPath?: string;
 }
 
@@ -109,6 +120,12 @@ export const MAIN_DOG: DogProfile = {
     height: 0.5,
     cooldown: 0.15,
   },
+  behavior: {
+    autoSitAfter: 12,
+    playBowDuration: 1.8,
+    standUpTime: 0.35,
+    bowRecoverTime: 0.15,
+  },
   // Circle in XZ; the dog is long and narrow so this is a compromise between
   // half-width (0.12) and half-length (0.48). Tune once real geometry exists.
   collisionRadius: 0.28,
@@ -128,6 +145,7 @@ export const MAIN_DOG: DogProfile = {
     nose: 0x3a2a26,
     eyes: 0xc89a3a,
   },
+  modelPath: 'models/dog_main.glb',
 };
 
 export const DOG_PROFILES: Record<string, DogProfile> = {

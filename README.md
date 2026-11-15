@@ -21,6 +21,7 @@ npm run preview  # serve the built dist/
 npm test         # unit tests (Vitest) + Playwright smoke tests (Chromium + WebKit)
 npm run test:unit
 npm run test:e2e
+npm run dog:build  # regenerate the placeholder rigged dog (public/models/dog_main.glb)
 ```
 
 `dist/` is a static site (relative paths), so it can be shared by uploading it to any static host.
@@ -34,6 +35,8 @@ npm run test:e2e
 | Alt/Option (hold) or C (toggle) | Walk |
 | Space | Jump |
 | E (hold) | Sniff (crawl, head down, camera low and close) |
+| X | Sit / stand up (the dog also sits by itself after idling ~12 s) |
+| B | Play bow |
 | Click | Mouse look (pointer lock); Esc releases |
 | Drag (left/right button) | Orbit without pointer lock |
 | Mouse wheel | Zoom |
