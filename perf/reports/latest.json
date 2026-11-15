@@ -1,0 +1,237 @@
+{
+  "date": "2026-11-15T03:09:37.400Z",
+  "commit": "a0824e4",
+  "results": {
+    "chromium-gpu": {
+      "load": {
+        "readyMs": 437
+      },
+      "idle": {
+        "fps": 119.99,
+        "avgFrameMs": 8.33,
+        "p95FrameMs": 9.8,
+        "p99FrameMs": 10.3,
+        "maxFrameMs": 10.3,
+        "hitches": 0,
+        "avgCpuMs": 0.38,
+        "p95CpuMs": 0.5,
+        "maxCpuMs": 1,
+        "maxDrawCalls": 21,
+        "maxTriangles": 63934,
+        "maxHeapMB": 9.54
+      },
+      "run": {
+        "fps": 120.01,
+        "avgFrameMs": 8.33,
+        "p95FrameMs": 10,
+        "p99FrameMs": 10.3,
+        "maxFrameMs": 10.4,
+        "hitches": 0,
+        "avgCpuMs": 0.38,
+        "p95CpuMs": 0.5,
+        "maxCpuMs": 1.2,
+        "maxDrawCalls": 23,
+        "maxTriangles": 69723,
+        "maxHeapMB": 9.54,
+        "tilesLoaded": 5,
+        "distanceM": 313
+      },
+      "teleport": {
+        "fps": 117.25,
+        "avgFrameMs": 8.53,
+        "p95FrameMs": 9.9,
+        "p99FrameMs": 15.6,
+        "maxFrameMs": 40.3,
+        "hitches": 0,
+        "avgCpuMs": 0.7,
+        "p95CpuMs": 1.1,
+        "maxCpuMs": 44.3,
+        "maxDrawCalls": 29,
+        "maxTriangles": 85166,
+        "maxHeapMB": 9.54,
+        "maxReadyMs": 194,
+        "avgReadyMs": 163
+      },
+      "topDown": {
+        "fps": 120.04,
+        "avgFrameMs": 8.33,
+        "p95FrameMs": 10,
+        "p99FrameMs": 10.4,
+        "maxFrameMs": 10.4,
+        "hitches": 0,
+        "avgCpuMs": 0.32,
+        "p95CpuMs": 0.4,
+        "maxCpuMs": 0.5,
+        "maxDrawCalls": 22,
+        "maxTriangles": 63100,
+        "maxHeapMB": 9.54
+      },
+      "tiles": {
+        "buildP95Ms": 58,
+        "finalizeP95Ms": 5.1,
+        "finalizeMaxMs": 11.7
+      },
+      "leaks": {
+        "geometriesDelta": 0,
+        "texturesDelta": 0,
+        "obstaclesDelta": 0
+      },
+      "errors": {
+        "count": 0
+      }
+    },
+    "webkit": {
+      "load": {
+        "readyMs": 590
+      },
+      "idle": {
+        "fps": 60,
+        "avgFrameMs": 16.67,
+        "p95FrameMs": 19,
+        "p99FrameMs": 19,
+        "maxFrameMs": 26,
+        "hitches": 0,
+        "avgCpuMs": 0.5,
+        "p95CpuMs": 1,
+        "maxCpuMs": 1,
+        "maxDrawCalls": 21,
+        "maxTriangles": 63934
+      },
+      "run": {
+        "fps": 60,
+        "avgFrameMs": 16.67,
+        "p95FrameMs": 19,
+        "p99FrameMs": 19,
+        "maxFrameMs": 28,
+        "hitches": 0,
+        "avgCpuMs": 0.52,
+        "p95CpuMs": 1,
+        "maxCpuMs": 3,
+        "maxDrawCalls": 23,
+        "maxTriangles": 69723,
+        "tilesLoaded": 5,
+        "distanceM": 310
+      },
+      "teleport": {
+        "fps": 59.73,
+        "avgFrameMs": 16.74,
+        "p95FrameMs": 19,
+        "p99FrameMs": 19,
+        "maxFrameMs": 59,
+        "hitches": 1,
+        "avgCpuMs": 0.82,
+        "p95CpuMs": 2,
+        "maxCpuMs": 15,
+        "maxDrawCalls": 27,
+        "maxTriangles": 79500,
+        "maxReadyMs": 334,
+        "avgReadyMs": 239
+      },
+      "topDown": {
+        "fps": 60,
+        "avgFrameMs": 16.67,
+        "p95FrameMs": 19,
+        "p99FrameMs": 19,
+        "maxFrameMs": 38,
+        "hitches": 0,
+        "avgCpuMs": 0.43,
+        "p95CpuMs": 1,
+        "maxCpuMs": 1,
+        "maxDrawCalls": 38,
+        "maxTriangles": 120603
+      },
+      "tiles": {
+        "buildP95Ms": 51,
+        "finalizeP95Ms": 2,
+        "finalizeMaxMs": 4
+      },
+      "leaks": {
+        "geometriesDelta": 0,
+        "texturesDelta": 0,
+        "obstaclesDelta": 0
+      },
+      "errors": {
+        "count": 0
+      }
+    },
+    "chromium-lowend": {
+      "load": {
+        "readyMs": 873
+      },
+      "idle": {
+        "fps": 120.04,
+        "avgFrameMs": 8.33,
+        "p95FrameMs": 10.1,
+        "p99FrameMs": 10.3,
+        "maxFrameMs": 10.4,
+        "hitches": 0,
+        "avgCpuMs": 1.32,
+        "p95CpuMs": 1.8,
+        "maxCpuMs": 2.8,
+        "maxDrawCalls": 21,
+        "maxTriangles": 63934,
+        "maxHeapMB": 9.54
+      },
+      "run": {
+        "fps": 120.01,
+        "avgFrameMs": 8.33,
+        "p95FrameMs": 10.1,
+        "p99FrameMs": 10.3,
+        "maxFrameMs": 10.4,
+        "hitches": 0,
+        "avgCpuMs": 1.3,
+        "p95CpuMs": 1.9,
+        "maxCpuMs": 5.8,
+        "maxDrawCalls": 23,
+        "maxTriangles": 69723,
+        "maxHeapMB": 9.54,
+        "tilesLoaded": 5,
+        "distanceM": 310
+      },
+      "teleport": {
+        "fps": 115.56,
+        "avgFrameMs": 8.65,
+        "p95FrameMs": 10.1,
+        "p99FrameMs": 17.6,
+        "maxFrameMs": 41.9,
+        "hitches": 0,
+        "avgCpuMs": 2.06,
+        "p95CpuMs": 5.4,
+        "maxCpuMs": 40.8,
+        "maxDrawCalls": 29,
+        "maxTriangles": 85166,
+        "maxHeapMB": 9.54,
+        "maxReadyMs": 226,
+        "avgReadyMs": 173
+      },
+      "topDown": {
+        "fps": 119.97,
+        "avgFrameMs": 8.34,
+        "p95FrameMs": 10,
+        "p99FrameMs": 10.3,
+        "maxFrameMs": 10.4,
+        "hitches": 0,
+        "avgCpuMs": 1.18,
+        "p95CpuMs": 1.7,
+        "maxCpuMs": 3.2,
+        "maxDrawCalls": 22,
+        "maxTriangles": 63100,
+        "maxHeapMB": 9.54
+      },
+      "tiles": {
+        "buildP95Ms": 48.8,
+        "finalizeP95Ms": 10.5,
+        "finalizeMaxMs": 17.3
+      },
+      "leaks": {
+        "geometriesDelta": 0,
+        "texturesDelta": 0,
+        "obstaclesDelta": 0
+      },
+      "errors": {
+        "count": 0
+      }
+    }
+  },
+  "failures": []
+}

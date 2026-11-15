@@ -4,6 +4,6 @@
     "types": ["node"],
     "lib": ["ES2022", "DOM"]
   },
-  "include": ["dog/**/*.ts", "../src/config/**/*.ts", "../src/dog/clips.ts"],
+  "include": ["dog/**/*.ts", "perf/**/*.ts", "../src/debug/debugApi.ts", "../src/debug/PerfMonitor.ts", "../src/config/**/*.ts", "../src/dog/clips.ts"],
   "exclude": ["../src/**/*.test.ts"]
 }

@@ -8,6 +8,8 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1, // one GPU-heavy page at a time keeps FPS numbers meaningful
   reporter: [['list']],
+  // The long random-wander soak only runs via `npm run test:soak` (SOAK=1).
+  grepInvert: process.env.SOAK ? undefined : /@soak/,
   use: {
     baseURL: `http://localhost:${PORT}`,
     viewport: { width: 1280, height: 720 },

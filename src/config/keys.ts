@@ -15,6 +15,7 @@ export const KEYS = {
   toggleGui: ['Backquote'],
   toggleTriggerZones: ['KeyT'],
   toggleTopDown: ['KeyM'],
+  togglePerfHud: ['KeyG'],
 } as const;
 
 export type Action = keyof typeof KEYS;

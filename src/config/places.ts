@@ -19,7 +19,7 @@ export interface Place {
 }
 
 export const PLACES: Place[] = [
-  { id: 'origin', label: 'Origin: 45th & Duval', x: 0, z: 0, heading: -0.35 },
+  { id: 'origin', label: 'Origin: 45th & Duval', x: 0, z: 0, heading: -0.5 }, // facing north up Duval
   // Boundary corners (just inside the playable edge)
   { id: 'nw-corner', label: 'NW corner: Guadalupe & Koenig/56th', x: 55.6, z: -1812.0 },
   { id: 'ne-corner', label: 'NE corner: 56th & Airport', x: 1070.9, z: -1235.0 },

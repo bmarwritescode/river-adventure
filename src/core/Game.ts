@@ -12,10 +12,18 @@ import { Environment } from '../world/environment';
 import { MapWorld, type NearestStreet } from '../world/map/MapWorld';
 import { TriggerSystem } from '../world/triggers';
 import { Overlay } from '../debug/Overlay';
+import { PerfHud } from '../debug/PerfHud';
+import { PerfMonitor } from '../debug/PerfMonitor';
 import { Toasts } from '../debug/Toasts';
 import { TuningPanel } from '../debug/TuningPanel';
 import { TriggerZoneView } from '../debug/TriggerZoneView';
 import { GameLoop } from './loop';
+
+/** Chrome-only JS heap size in MB (null elsewhere). */
+function heapMB(): number | null {
+  const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
+  return mem ? mem.usedJSHeapSize / 1048576 : null;
+}
 
 /** Top-level wiring: owns the renderer, world, dog, camera, and debug tools. */
 export class Game {
@@ -33,6 +41,8 @@ export class Game {
   private readonly loop: GameLoop;
   private readonly overlay: Overlay;
   private readonly toasts = new Toasts();
+  readonly perf = new PerfMonitor();
+  private readonly perfHud = new PerfHud(this.perf);
   private readonly panel: TuningPanel;
   private zoneView: TriggerZoneView | null = null;
   private readonly loadingEl = document.createElement('div');
@@ -60,9 +70,15 @@ export class Game {
     container.appendChild(this.renderer.domElement);
     const canvas = this.renderer.domElement;
     canvas.tabIndex = 0;
+    // preventDefault() allows the browser to restore the context; three.js then re-uploads every
+    // geometry/texture from the data it still holds (that's why map textures are kept as raw pixels).
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();
-      this.toasts.show('Graphics context lost — reload the page', 10);
+      this.toasts.show('Graphics context lost — trying to restore…', 4);
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      this.env.applyShadowSettings();
+      this.toasts.show('Graphics restored', 2);
     });
 
     this.input = new Input(canvas);
@@ -102,7 +118,11 @@ export class Game {
 
     this.addHud();
     window.addEventListener('resize', () => this.onResize());
-    this.loop = new GameLoop({ step: (dt) => this.step(dt), render: (a, fdt) => this.render(a, fdt) });
+    this.loop = new GameLoop({
+      step: (dt) => this.step(dt),
+      render: (a, fdt) => this.render(a, fdt),
+      frameDone: (at, frameMs, cpuMs) => this.perf.record(at, frameMs, cpuMs),
+    });
     this.exposeDebugApi();
   }
 
@@ -168,6 +188,7 @@ export class Game {
       TUNING.debug.showTriggerZones = !TUNING.debug.showTriggerZones;
       if (this.zoneView) this.zoneView.visible = TUNING.debug.showTriggerZones;
     }
+    if (inp.consumePressed('togglePerfHud')) this.perfHud.toggle();
     if (inp.consumePressed('toggleTopDown')) {
       this.cam.topDown = !this.cam.topDown;
       this.env.setFogEnabled(!this.cam.topDown);
@@ -197,6 +218,11 @@ export class Game {
     const inside = this.triggers.insideIds;
     const st = this.mapReady ? this.map.stats : null;
     const info = this.renderer.info.render;
+    this.perfHud.update({
+      drawCalls: info.calls, triangles: info.triangles, tiles: st?.loaded ?? 0,
+      geometries: this.renderer.info.memory.geometries, textures: this.renderer.info.memory.textures,
+      heapMB: heapMB(),
+    });
     this.overlay.update(
       frameDt,
       `street ${this.street ? `${this.street.name} (${this.street.distance.toFixed(0)} m)` : '-'}\n` +
@@ -250,7 +276,7 @@ export class Game {
     help.className = 'help';
     help.textContent =
       'WASD/arrows move · Shift run · Alt hold / C toggle walk · Space jump · E sniff · X sit · B play bow · ' +
-      'click = mouse look (Esc releases) / drag · wheel zoom · P copy pos · T zones · M top-down · ` tuning';
+      'click = mouse look (Esc releases) / drag · wheel zoom · P copy pos · T zones · M top-down · G perf · ` tuning';
     document.body.appendChild(help);
 
     const attribution = document.createElement('a');
@@ -302,6 +328,24 @@ export class Game {
       get drawCalls() { return game.renderer.info.render.calls; },
       get triangles() { return game.renderer.info.render.triangles; },
       places: PLACES.map((p) => ({ id: p.id, label: p.label })),
+      perf: {
+        now: () => performance.now(),
+        summary: (sinceMs: number) => game.perf.summary(sinceMs),
+        get memory() {
+          const m = game.renderer.info.memory;
+          const r = game.mapReady ? game.map.resources : { geometries: 0, textures: 0, obstacles: 0 };
+          return {
+            geometries: m.geometries, textures: m.textures, heapMB: heapMB(), obstacles: game.collision.count,
+            // Everything NOT owned by loaded map tiles: must stay constant (else something leaks).
+            nonMapGeometries: m.geometries - r.geometries,
+            nonMapTextures: m.textures - r.textures,
+            nonMapObstacles: game.collision.count - r.obstacles,
+          };
+        },
+        get tiles() {
+          return { build: [...game.map.timings.build], finalize: [...game.map.timings.finalize] };
+        },
+      },
     };
   }
 }

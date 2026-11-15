@@ -14,7 +14,6 @@ interface LoadedTile {
   group: THREE.Group;
   groundMaterial: THREE.MeshLambertMaterial;
   texture: THREE.Texture;
-  bitmap: ImageBitmap;
   obstacleIds: string[];
   streets: TileStreet[];
   triangles: number;
@@ -25,6 +24,11 @@ export interface NearestStreet {
   cls: string;
   distance: number;
 }
+
+const pushCapped = (arr: number[], v: number, cap = 300): void => {
+  arr.push(v);
+  if (arr.length > cap) arr.shift();
+};
 
 const toVec2 = (flat: FlatCoords): Vec2[] => {
   const out: Vec2[] = [];
@@ -55,10 +59,13 @@ export class MapWorld {
   private readonly maxAnisotropy: number;
   private lastBuildMs = 0;
   errors = 0;
+  /** Recent per-tile timings, ms: worker build (off-thread) and main-thread finalize (can cause stutters). */
+  readonly timings = { build: [] as number[], finalize: [] as number[] };
+  private boundaryWallCount = 0;
 
   constructor(
     private readonly collision: CollisionWorld,
-    renderer: THREE.WebGLRenderer,
+    private readonly renderer: THREE.WebGLRenderer,
   ) {
     this.group.name = 'map';
     this.baseUrl = new URL(`${import.meta.env.BASE_URL}map/`, document.baseURI).href;
@@ -141,10 +148,7 @@ export class MapWorld {
     for (let k = 0; k < maxFinalizePerFrame && this.built.length; k++) {
       const t = this.built.shift()!;
       this.builtKeys.delete(t.key);
-      if (this.tileDistance(t.i, t.j, x, z) > unloadRadius) {
-        t.texture.close(); // moved away while it was building
-        continue;
-      }
+      if (this.tileDistance(t.i, t.j, x, z) > unloadRadius) continue; // moved away while it was building
       this.finalize(t);
     }
 
@@ -203,6 +207,20 @@ export class MapWorld {
     return best;
   }
 
+  /**
+   * GPU/collision resources owned by the map right now. Leak checks compare the renderer's totals
+   * minus these, which must stay constant however many tiles are loaded.
+   */
+  get resources(): { geometries: number; textures: number; obstacles: number } {
+    let geometries = 0;
+    let obstacles = this.boundaryWallCount;
+    for (const t of this.loaded.values()) {
+      geometries += t.group.children.length; // one geometry per mesh (ground, buildings)
+      obstacles += t.obstacleIds.length;
+    }
+    return { geometries, textures: this.loaded.size, obstacles };
+  }
+
   get stats(): { loaded: number; inFlight: number; queued: number; triangles: number; lastBuildMs: number } {
     let triangles = 0;
     for (const t of this.loaded.values()) triangles += t.triangles;
@@ -214,7 +232,6 @@ export class MapWorld {
 
   dispose(): void {
     for (const t of [...this.loaded.values()]) this.unload(t);
-    for (const t of this.built) t.texture.close();
     this.built.length = 0;
     this.builtKeys.clear();
     for (const w of this.workers) w.terminate();
@@ -254,24 +271,29 @@ export class MapWorld {
     }
     this.inFlight.delete(msg.tile.key);
     this.lastBuildMs = msg.tile.buildMs;
-    if (this.loaded.has(msg.tile.key) || this.builtKeys.has(msg.tile.key)) {
-      msg.tile.texture.close(); // duplicate; shouldn't happen, but never leak a bitmap
-      return;
-    }
+    pushCapped(this.timings.build, msg.tile.buildMs);
+    if (this.loaded.has(msg.tile.key) || this.builtKeys.has(msg.tile.key)) return; // duplicate
     this.builtKeys.add(msg.tile.key);
     this.built.push(msg.tile);
   }
 
   private finalize(t: BuiltTile): void {
+    const t0 = performance.now();
     const group = new THREE.Group();
     group.name = `tile ${t.key}`;
 
-    const texture = new THREE.Texture(t.texture);
+    const texture = new THREE.DataTexture(t.pixels, t.textureSize, t.textureSize, THREE.RGBAFormat);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.flipY = false;
+    texture.generateMipmaps = true;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.magFilter = THREE.LinearFilter;
     texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
     texture.anisotropy = this.maxAnisotropy;
     texture.needsUpdate = true;
+    // Upload now (inside the measured, budgeted finalize step) rather than on the first frame the tile
+    // comes into view, which would cause a stutter at an unpredictable moment.
+    this.renderer.initTexture(texture);
     const groundMaterial = new THREE.MeshLambertMaterial({ map: texture });
     const ground = new THREE.Mesh(this.geometry(t.ground), groundMaterial);
     ground.receiveShadow = true;
@@ -300,8 +322,9 @@ export class MapWorld {
     }
 
     this.loaded.set(t.key, {
-      key: t.key, group, groundMaterial, texture, bitmap: t.texture, obstacleIds: ids, streets: t.streets, triangles,
+      key: t.key, group, groundMaterial, texture, obstacleIds: ids, streets: t.streets, triangles,
     });
+    pushCapped(this.timings.finalize, performance.now() - t0);
   }
 
   private geometry(m: { positions: Float32Array; normals: Float32Array; indices: Uint32Array; uvs?: Float32Array; colors?: Uint8Array }): THREE.BufferGeometry {
@@ -325,7 +348,6 @@ export class MapWorld {
     t.group.removeFromParent();
     t.groundMaterial.dispose();
     t.texture.dispose();
-    t.bitmap.close();
   }
 
   /**
@@ -346,6 +368,7 @@ export class MapWorld {
       const nx = uz * wind, nz = -ux * wind; // outward normal
       const ax = a.x - ux * ext, az = a.z - uz * ext;
       const bx = b.x + ux * ext, bz = b.z + uz * ext;
+      this.boundaryWallCount++;
       this.collision.add({
         id: `boundary#${k}`,
         // height 0: blocks the dog, but never blocks the camera ray

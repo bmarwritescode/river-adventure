@@ -1,4 +1,5 @@
 import type { DogState } from '../dog/DogController';
+import type { PerfSummary } from './PerfMonitor';
 
 /**
  * Minimal READ-ONLY debug surface on `window.__game`, for automated tests and
@@ -33,6 +34,19 @@ export interface GameDebugApi {
   readonly drawCalls: number;
   readonly triangles: number;
   readonly places: { id: string; label: string }[];
+  readonly perf: {
+    /** performance.now(), for use as a `summary(since)` start mark. */
+    now(): number;
+    /** Frame-time summary of frames since `sinceMs`. */
+    summary(sinceMs: number): PerfSummary;
+    readonly memory: {
+      geometries: number; textures: number; heapMB: number | null; obstacles: number;
+      /** Totals minus what the loaded map tiles own: constant unless something leaks. */
+      nonMapGeometries: number; nonMapTextures: number; nonMapObstacles: number;
+    };
+    /** Recent per-tile timings, ms. */
+    readonly tiles: { build: number[]; finalize: number[] };
+  };
 }
 
 declare global {

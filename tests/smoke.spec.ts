@@ -31,7 +31,7 @@ async function hold(page: Page, keys: string[], ms: number, sample?: () => Promi
   for (const k of keys) await page.keyboard.up(k);
 }
 
-test('real map loads, dog spawns clear of buildings and moves', async ({ page }, testInfo) => {
+test('real map loads, dog spawns clear of buildings and moves @quick', async ({ page }, testInfo) => {
   const errors = collectErrors(page);
   await page.goto('/');
   await gameReady(page);
@@ -63,7 +63,7 @@ test('real map loads, dog spawns clear of buildings and moves', async ({ page },
   expect(errors, errors.join('\n')).toEqual([]);
 });
 
-test('rigged dog model loads with every clip; sit and play bow work', async ({ page }) => {
+test('rigged dog model loads with every clip; sit and play bow work @quick', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('/');
   await gameReady(page);
@@ -103,7 +103,7 @@ test('teleport to each corner: tiles load there and the boundary holds', async (
   for (const c of corners) {
     const label = places.find((p) => p.id === c.id)!.label;
     await page.getByTestId('teleport').selectOption({ label });
-    await page.locator('canvas').focus();
+    await page.locator('#app canvas').focus();
     await gameReady(page);
     const at = await page.evaluate(() => ({ dog: window.__game!.dog, map: window.__game!.map, street: window.__game!.street }));
     console.log(`[${testInfo.project.name}] ${c.id}: ${at.map.loadedTiles} tiles, street ${at.street}`);

@@ -30,7 +30,7 @@ The owner is an experienced programmer but new to game dev. Explain game-dev-spe
 1. Skeleton: project, box-dog, third-person camera, movement. ✅
 2. Real map as gray blocks: offline script pulls OSM streets/footprints, converts to local meters, writes tiles; game streams tiles near the dog. ✅
 3. Crude real-dog test: rigged .glb with named clips, end to end (+ sit and play bow). ✅
-4. Stability baseline: perf budget + automated smoke tests after every change.
+4. Stability baseline: perf budget + automated smoke tests after every change. ✅
 5. Art direction on one fully dressed block.
 6. Make the dog recognizable (art iteration).
 7. Fill the neighborhood: procedural houses, trees, street dressing, landmarks.
@@ -133,13 +133,48 @@ The owner is an experienced programmer but new to game dev. Explain game-dev-spe
 ### Performance budget
 
 - 60 fps on a recent Apple Silicon Mac in Chrome and Safari; 30 fps minimum on older hardware.
+  Dev machine: 2021 MacBook Pro, M1 Max (that's the "recent Apple Silicon" reference).
 - Keep draw calls low (instancing/merging where it matters). The overlay shows draw calls.
+- The budget is enforced by `npm run perf` against `perf/budget.json` (frame times, stutters >50 ms,
+  per-frame CPU time, draw calls, triangles, heap, tile build/finalize times, leaks, load/teleport times).
+
+## Stability & performance (Step 4)
+
+| Command | What | When |
+| --- | --- | --- |
+| `npm run check` | build + unit tests + 2 `@quick` smoke tests (WebKit), ~15 s | automatically on every commit (pre-commit hook) |
+| `npm test` | unit + all smoke + stability tests, both browsers, ~3 min | after every change, before saying it's done |
+| `npm run perf` | production build benchmark vs `perf/budget.json` (Chrome GPU, WebKit, Chrome CPU-throttled 4×) | after any change to rendering, map/streaming, assets, the dog visual or the loop; at the end of each roadmap step. Report the headline numbers. |
+| `npm run test:soak` | seeded random wander checking invariants (`SOAK_SECONDS`, `SOAK_SEED`) | at the end of each roadmap step |
+
+- Pre-commit hook: `.githooks/pre-commit` (enabled by `npm install` via `prepare`). Never bypass it with
+  `--no-verify`; if it fails, fix the cause.
+- Never loosen `perf/budget.json` just to make a run pass. A budget change needs a stated reason (e.g. a
+  measurement artifact), recorded in its `_comment`. `npm run perf` also warns when a metric gets >30% worse than
+  the previous run (`perf/reports/latest.json`); `perf/history.csv` keeps the trend. Commit both.
+- In-game perf overlay: **G** (frame-time graph, CPU time, draws, triangles, geometries/textures, heap).
+  Use it for checks in real Safari / other machines; headless numbers are a guide only.
+- Low-end coverage is a proxy: CPU throttled 4× in Chrome. The GPU is NOT slowed, and on older Macs the GPU
+  (fill rate, texture memory) is the likelier bottleneck. Watch triangles, texture sizes and overdraw.
+- Leak check = renderer geometries/textures and collision obstacles NOT owned by loaded map tiles
+  (`MapWorld.resources`) must be unchanged after teleporting around, read from a zoomed-out top-down view
+  (three.js only counts resources once they've been drawn).
+
+Lessons so far (keep following them):
+- Heavy work goes in the tile worker; main-thread work per tile ("finalize") must stay well under a frame.
+- Upload GPU resources when they're created (`renderer.initTexture`), not lazily on first view: lazy uploads
+  stutter at unpredictable moments.
+- Map ground textures are raw RGBA pixels (`DataTexture`), not ImageBitmaps: WebKit took 13–67 ms per
+  ImageBitmap upload (vs ~2 ms), and keeping the pixels lets three.js re-upload after a WebGL context restore.
+- Low frame rates expose streaming bugs (a tile re-request bug only showed at ~6 fps): keep testing in
+  headless software-GL Chromium too.
+- Benchmark routes must stay on open streets (a route that hits a wall measures nothing).
 
 ## Workflow rules
 
 - Work in small steps. After each step run **`npm run build`** (type-check + build) and **`npm test`**
-  (Vitest unit tests in `src/**/*.test.ts` + Playwright smoke tests in `tests/`, Chromium + WebKit) and fix
-  failures before saying it's done.
+  (Vitest unit tests in `src/**/*.test.ts` + Playwright smoke/stability tests in `tests/`, Chromium + WebKit)
+  and fix failures before saying it's done. Plus `npm run perf` / `npm run test:soak` per the table above.
 - Use git; commit after each working step with a clear message.
 - When something is ambiguous, state the assumption rather than silently guessing; ask only if a wrong guess is costly.
 - At the end of each task report: what changed, how to run/test it, what to try or tune.

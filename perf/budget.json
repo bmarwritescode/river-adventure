@@ -1,0 +1,83 @@
+{
+  "_comment": [
+    "Performance budget checked by `npm run perf` (all values are maximums).",
+    "'*' applies to every setup; a setup's own entry overrides it per metric.",
+    "Targets come from CLAUDE.md: 60 fps on this M1 Max in Chrome and Safari; 30 fps minimum on older hardware",
+    "(chromium-lowend = CPU throttled 4x, a rough stand-in). Draw calls / triangles leave headroom for Steps 5-7 art.",
+    "Frame times are display-capped (8.3 ms at 120 Hz, 16.7 ms at 60 Hz); cpuMs is our own work per frame.",
+    "p95FrameMs 20 (not 16.7): WebKit reports frame times in whole ms, so a steady 60 fps reads 16-18 ms.",
+    "tiles.finalize* = main-thread time to turn one built tile into meshes (incl. texture upload); must stay well under one 60 Hz frame. Measured 2-8 ms; noisy in Chrome."
+  ],
+  "*": {
+    "load": {
+      "readyMs": 5000
+    },
+    "idle": {
+      "p95FrameMs": 20,
+      "hitches": 0,
+      "p95CpuMs": 6,
+      "maxDrawCalls": 150,
+      "maxTriangles": 600000,
+      "maxHeapMB": 250
+    },
+    "run": {
+      "p95FrameMs": 20,
+      "hitches": 0,
+      "p95CpuMs": 6,
+      "maxDrawCalls": 150,
+      "maxTriangles": 600000,
+      "maxHeapMB": 250
+    },
+    "topDown": {
+      "p95FrameMs": 20,
+      "hitches": 0,
+      "p95CpuMs": 6,
+      "maxDrawCalls": 250,
+      "maxTriangles": 1000000
+    },
+    "teleport": {
+      "p95FrameMs": 25,
+      "hitches": 5,
+      "maxReadyMs": 3000
+    },
+    "tiles": {
+      "buildP95Ms": 150,
+      "finalizeP95Ms": 10,
+      "finalizeMaxMs": 30
+    },
+    "leaks": {
+      "geometriesDelta": 0,
+      "texturesDelta": 0,
+      "obstaclesDelta": 0
+    },
+    "errors": {
+      "count": 0
+    }
+  },
+  "chromium-lowend": {
+    "idle": {
+      "p95FrameMs": 34,
+      "p95CpuMs": 16
+    },
+    "run": {
+      "p95FrameMs": 34,
+      "p95CpuMs": 16
+    },
+    "topDown": {
+      "p95FrameMs": 34,
+      "p95CpuMs": 16
+    },
+    "teleport": {
+      "p95FrameMs": 50,
+      "hitches": 10,
+      "maxReadyMs": 6000
+    },
+    "tiles": {
+      "finalizeP95Ms": 15,
+      "finalizeMaxMs": 60
+    },
+    "load": {
+      "readyMs": 10000
+    }
+  }
+}

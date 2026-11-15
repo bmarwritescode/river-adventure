@@ -18,9 +18,12 @@ npx playwright install chromium webkit   # once, for tests
 npm run dev      # http://localhost:5173 (hot reload)
 npm run build    # type-check + production build to dist/
 npm run preview  # serve the built dist/
-npm test         # unit tests (Vitest) + Playwright smoke tests (Chromium + WebKit)
+npm test         # unit tests (Vitest) + Playwright smoke & stability tests (Chromium + WebKit), ~3 min
 npm run test:unit
 npm run test:e2e
+npm run check    # quick check (~15 s); runs automatically as a git pre-commit hook
+npm run perf     # performance benchmark vs perf/budget.json (report: perf/reports/latest.json)
+npm run test:soak  # long random-wander stability test (SOAK_SECONDS=120, SOAK_SEED=...)
 npm run dog:build  # regenerate the placeholder rigged dog (public/models/dog_main.glb)
 ```
 
@@ -43,6 +46,7 @@ npm run dog:build  # regenerate the placeholder rigged dog (public/models/dog_ma
 | P | Copy dog position as `{ x: …, z: … }` |
 | T | Show/hide trigger zones |
 | M | Top-down map view (wheel zooms; W = north while it's on) |
+| G | Performance overlay (frame-time graph, CPU time, draw calls, memory) |
 | ` (backtick) | Tuning panel (includes the **Teleport** dropdown) |
 
 Start somewhere specific with `?at=<place id>`, e.g. `http://localhost:5173/?at=51st-duval`
