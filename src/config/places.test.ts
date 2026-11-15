@@ -1,12 +1,12 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Vec2 } from '../core/math';
 import { closestPointOnPolygon, pointInPolygon } from '../world/geometry2d';
 import type { MapIndex } from '../world/map/types';
+import mapIndex from '../../public/map/index.json';
 import { PLACES, SPAWN_PLACE_ID, TEST_TRIGGER_ZONES, findPlace } from './places';
 
 // The playable boundary written by the map pipeline (near curb of the boundary streets).
-const index = JSON.parse(readFileSync('public/map/index.json', 'utf8')) as MapIndex;
+const index = mapIndex as unknown as MapIndex;
 const boundary: Vec2[] = [];
 for (let k = 0; k < index.boundary.length; k += 2) boundary.push({ x: index.boundary[k]!, z: index.boundary[k + 1]! });
 
