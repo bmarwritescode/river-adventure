@@ -80,6 +80,15 @@ The owner is an experienced programmer but new to game dev. Explain game-dev-spe
   Bump `SAVE_VERSION` + add a migration when its shape changes.
 - All models/assets are glTF binary (`.glb`), under `public/models/`.
 
+### Map pipeline
+
+- Offline only: `tools/map/` (Python 3.12 via uv, pinned in `uv.lock`), run with `npm run map:build`.
+  The game only reads its output files; never fetch OSM at runtime.
+- Raw OSM download is cached in `tools/map/cache/` (gitignored); `--refresh` re-downloads.
+- The origin is pinned in `src/world/mapOrigin.json` (shared by Python and TS). Don't re-pin casually: it shifts all coordinates.
+- The play-area boundary lives in `tools/map/boundary.geojson` (lat/lon), the editable source of truth.
+- OSM attribution ("© OpenStreetMap contributors") must stay visible in the game and README.
+
 ### Code conventions
 
 - Layout: `src/core` (loop, Game wiring, math), `src/input`, `src/dog`, `src/camera`, `src/world`, `src/debug`,

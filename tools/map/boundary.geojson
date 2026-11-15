@@ -1,0 +1,307 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "name": "Play area boundary",
+    "note": "Edit freely (e.g. paste this file into geojson.io). Coordinates are [lon, lat]. Re-derive from the streets with: npm run map:build -- --regen-boundary",
+    "decisions": [
+     "South-east corner closed along I-35 (southbound main lanes), because Airport Blvd crosses I-35 near 45th St and 38th St is broken at the interstate.",
+     "West 38th Street / East 38th Street extended 349 m in a straight line to meet the next boundary street (it stops short in OSM). It runs along East 38th Street (within 25 m).",
+     "West 56th Street / East 56th Street extended 203 m in a straight line to meet the next boundary street (it stops short in OSM). It runs along West Koenig Lane (within 25 m).",
+     "West 56th Street / East 56th Street extended 324 m in a straight line to meet the next boundary street (it stops short in OSM). It runs along East 56th Street (within 25 m).",
+     "Bridged a 501 m gap in Guadalupe Street. No named road runs there in OSM, so it cuts straight across.",
+     "Bridged a 501 m gap in Guadalupe Street. No named road runs there in OSM, so it cuts straight across."
+    ]
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -97.7381519,
+       30.302745
+      ],
+      [
+       -97.7363247,
+       30.3018501
+      ],
+      [
+       -97.7303566,
+       30.299012
+      ],
+      [
+       -97.7296398,
+       30.2986339
+      ],
+      [
+       -97.7293988,
+       30.2984672
+      ],
+      [
+       -97.7289427,
+       30.2982505
+      ],
+      [
+       -97.7247666,
+       30.296284
+      ],
+      [
+       -97.7246206,
+       30.2962497
+      ],
+      [
+       -97.7243471,
+       30.2962255
+      ],
+      [
+       -97.7243136,
+       30.2960438
+      ],
+      [
+       -97.7202436,
+       30.2940874
+      ],
+      [
+       -97.7190565,
+       30.295973
+      ],
+      [
+       -97.7169095,
+       30.2995686
+      ],
+      [
+       -97.7159645,
+       30.3010473
+      ],
+      [
+       -97.7153523,
+       30.3019477
+      ],
+      [
+       -97.7156334,
+       30.3023131
+      ],
+      [
+       -97.715823,
+       30.302702
+      ],
+      [
+       -97.715982,
+       30.303182
+      ],
+      [
+       -97.7160276,
+       30.3034837
+      ],
+      [
+       -97.7159891,
+       30.3036147
+      ],
+      [
+       -97.7159886,
+       30.3040209
+      ],
+      [
+       -97.715936,
+       30.3048423
+      ],
+      [
+       -97.7154594,
+       30.3111135
+      ],
+      [
+       -97.7152645,
+       30.3130922
+      ],
+      [
+       -97.7151798,
+       30.3135591
+      ],
+      [
+       -97.7149087,
+       30.3144278
+      ],
+      [
+       -97.7139661,
+       30.3164405
+      ],
+      [
+       -97.7131527,
+       30.3181065
+      ],
+      [
+       -97.7167913,
+       30.319964
+      ],
+      [
+       -97.7185548,
+       30.3208273
+      ],
+      [
+       -97.722035,
+       30.3224759
+      ],
+      [
+       -97.7238144,
+       30.3235522
+      ],
+      [
+       -97.7242012,
+       30.322936
+      ],
+      [
+       -97.7245304,
+       30.3224986
+      ],
+      [
+       -97.7246931,
+       30.3223877
+      ],
+      [
+       -97.7249104,
+       30.322296
+      ],
+      [
+       -97.7252363,
+       30.3222051
+      ],
+      [
+       -97.7254894,
+       30.3220905
+      ],
+      [
+       -97.725696,
+       30.321909
+      ],
+      [
+       -97.7258125,
+       30.3217407
+      ],
+      [
+       -97.7284618,
+       30.3176471
+      ],
+      [
+       -97.7310862,
+       30.3137374
+      ],
+      [
+       -97.732596,
+       30.3113659
+      ],
+      [
+       -97.732841,
+       30.3110934
+      ],
+      [
+       -97.7381519,
+       30.302745
+      ]
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "role": "connector",
+    "note": "Synthetic stretch (no real street here); informational only."
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -97.7234163,
+      30.2956129
+     ],
+     [
+      -97.7202254,
+      30.2940786
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "role": "connector",
+    "note": "Synthetic stretch (no real street here); informational only."
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -97.7220803,
+      30.3225033
+     ],
+     [
+      -97.7238315,
+      30.3235625
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "role": "connector",
+    "note": "Synthetic stretch (no real street here); informational only."
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -97.7160571,
+      30.3195946
+     ],
+     [
+      -97.7131348,
+      30.3180973
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "role": "connector",
+    "note": "Synthetic stretch (no real street here); informational only."
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -97.7310862,
+      30.3137374
+     ],
+     [
+      -97.7284618,
+      30.3176471
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "role": "connector",
+    "note": "Synthetic stretch (no real street here); informational only."
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      -97.7284618,
+      30.3176471
+     ],
+     [
+      -97.7310862,
+      30.3137374
+     ]
+    ]
+   }
+  }
+ ]
+}

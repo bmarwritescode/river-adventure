@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "playwright test"
+    "test": "playwright test",
+    "map:build": "uv run --project tools/map python tools/map/build_map.py"
   },
   "dependencies": {
     "lil-gui": "^0.21.0",

@@ -1,0 +1,14 @@
+[project]
+name = "hyde-park-map"
+version = "0.1.0"
+description = "Offline OSM -> game map pipeline (never runs at game runtime)"
+requires-python = "==3.12.*"
+dependencies = [
+  "pyproj",
+  "shapely",
+  "requests",
+  "matplotlib",
+]
+
+[tool.uv]
+package = false

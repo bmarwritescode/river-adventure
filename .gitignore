@@ -6,3 +6,9 @@ blob-report/
 .DS_Store
 *.log
 .vite/
+
+# map pipeline
+tools/map/.venv/
+tools/map/cache/
+tools/map/out/
+__pycache__/

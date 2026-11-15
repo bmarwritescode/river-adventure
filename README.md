@@ -40,3 +40,25 @@ npm test         # Playwright smoke test (Chromium + WebKit)
 | ` (backtick) | Tuning panel |
 
 See `CLAUDE.md` for architecture contracts and conventions.
+
+## Map pipeline (offline)
+
+The game never fetches map data at runtime; an offline Python pipeline in `tools/map/` produces it.
+Requires [uv](https://docs.astral.sh/uv/) (it installs the pinned Python 3.12 environment on first run).
+
+```sh
+npm run map:build                       # uses cached OSM data in tools/map/cache/
+npm run map:build -- --refresh          # re-download from OpenStreetMap (Overpass API)
+npm run map:build -- --regen-boundary   # re-derive tools/map/boundary.geojson from the streets
+npm run map:build -- --regen-origin     # re-pin the origin (moves every world coordinate!)
+```
+
+Outputs:
+- `src/world/mapOrigin.json`: map origin (E 45th St & Duval St), shared by the pipeline and the game.
+- `tools/map/boundary.geojson`: play-area boundary. Hand-editable; paste into geojson.io to view or edit.
+- `tools/map/out/preview.png`: preview of streets, buildings, boundary and origin.
+
+## Attribution
+
+Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), available under the
+Open Database License (ODbL).
