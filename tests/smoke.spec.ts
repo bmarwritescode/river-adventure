@@ -1,69 +1,123 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /**
- * Smoke test: the game loads without console errors, the dog moves when
- * "forward" is held, a trigger zone fires, and jumping works.
- * Also prints average FPS (headless numbers are only a rough signal).
+ * Smoke tests on the real map: loads without console errors, tiles stream in, the dog spawns
+ * outside buildings, moves, stays inside the play area at every corner, and never ends up inside
+ * a building. Prints FPS / draw calls / triangles (headless numbers are only a rough signal).
  */
 
-async function gameReady(page: Page): Promise<void> {
-  await page.waitForFunction(() => window.__game?.ready === true && window.__game.frames > 10, null, { timeout: 20_000 });
-}
-
-test('game loads, dog moves, zones fire, no errors', async ({ page }, testInfo) => {
+function collectErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on('console', (msg) => {
     if (msg.type() === 'error') errors.push(`console.error: ${msg.text()}`);
   });
   page.on('pageerror', (err) => errors.push(`uncaught: ${err.message}`));
+  return errors;
+}
 
+async function gameReady(page: Page): Promise<void> {
+  await page.waitForFunction(() => window.__game?.ready === true && window.__game.map.pendingTiles === 0, null, {
+    timeout: 30_000,
+  });
+}
+
+async function hold(page: Page, keys: string[], ms: number, sample?: () => Promise<void>): Promise<void> {
+  for (const k of keys) await page.keyboard.down(k);
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (sample) await sample();
+    await page.waitForTimeout(100);
+  }
+  for (const k of keys) await page.keyboard.up(k);
+}
+
+test('real map loads, dog spawns clear of buildings and moves', async ({ page }, testInfo) => {
+  const errors = collectErrors(page);
   await page.goto('/');
   await gameReady(page);
 
-  const start = await page.evaluate(() => window.__game!.dog.position);
-  expect(await page.evaluate(() => window.__game!.dog.state)).toBe('idle');
+  const g0 = await page.evaluate(() => ({ dog: window.__game!.dog, map: window.__game!.map, street: window.__game!.street }));
+  expect(g0.map.loadedTiles).toBeGreaterThan(4);
+  expect(g0.map.errors).toBe(0);
+  expect(g0.dog.insideObstacle).toBe(false);
+  expect(g0.dog.insideBoundary).toBe(true);
+  expect(g0.street).not.toBeNull();
 
-  // Hold forward for 2 s (default pace = trot). Zone A sits just ahead of spawn.
-  await page.keyboard.down('KeyW');
-  await page.waitForTimeout(2000);
-  const moving = await page.evaluate(() => window.__game!.dog.state);
-  await page.keyboard.up('KeyW');
-
+  await hold(page, ['KeyW'], 2000);
   const end = await page.evaluate(() => window.__game!.dog.position);
-  const moved = Math.hypot(end.x - start.x, end.z - start.z);
-  console.log(`[${testInfo.project.name}] moved ${moved.toFixed(2)} m, state while moving: ${moving}`);
+  const moved = Math.hypot(end.x - g0.dog.position.x, end.z - g0.dog.position.z);
+  console.log(`[${testInfo.project.name}] moved ${moved.toFixed(2)} m; street at spawn: ${g0.street}`);
   expect(moved).toBeGreaterThan(2);
-  expect(end.z).toBeLessThan(start.z); // forward from spawn = north = -Z
-  expect(['walk', 'trot', 'run']).toContain(moving);
 
-  const triggers = await page.evaluate(() => window.__game!.triggers);
-  expect(triggers.enterCount).toBeGreaterThanOrEqual(1);
-
-  // Jump: the dog should leave the ground and come back.
-  await page.keyboard.press('Space');
-  await page.waitForFunction(() => window.__game!.dog.state === 'jump', null, { timeout: 2000 });
-  await page.waitForFunction(() => window.__game!.dog.state !== 'jump', null, { timeout: 3000 });
-
-  // Rough FPS sample.
+  // Rough perf sample while idle on the street.
   const f0 = await page.evaluate(() => window.__game!.frames);
   await page.waitForTimeout(2000);
-  const f1 = await page.evaluate(() => window.__game!.frames);
-  const draws = await page.evaluate(() => window.__game!.drawCalls);
-  console.log(`[${testInfo.project.name}] avg FPS ≈ ${((f1 - f0) / 2).toFixed(1)} (headless), draw calls: ${draws}`);
-
+  const s = await page.evaluate(() => ({
+    frames: window.__game!.frames, draws: window.__game!.drawCalls, tris: window.__game!.triangles,
+    tiles: window.__game!.map.loadedTiles,
+  }));
+  console.log(
+    `[${testInfo.project.name}] avg FPS ≈ ${((s.frames - f0) / 2).toFixed(1)} (headless), ` +
+    `draw calls ${s.draws}, triangles ${(s.tris / 1000).toFixed(0)}k, tiles ${s.tiles}`,
+  );
   expect(errors, errors.join('\n')).toEqual([]);
 });
 
-test('collision: running north stops at the fence', async ({ page }) => {
+test('teleport to each corner: tiles load there and the boundary holds', async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
+  const errors = collectErrors(page);
   await page.goto('/');
   await gameReady(page);
-  // The fence's south face is at z = -15.94; the dog's collision radius is 0.28.
-  await page.keyboard.down('ShiftLeft');
-  await page.keyboard.down('KeyW');
-  await page.waitForTimeout(4000);
-  await page.keyboard.up('KeyW');
-  await page.keyboard.up('ShiftLeft');
-  const z = await page.evaluate(() => window.__game!.dog.position.z);
-  expect(z).toBeLessThan(-14); // actually reached the fence
-  expect(z).toBeGreaterThan(-15.94); // ...but didn't pass through it
+
+  // Top-down view makes WASD map to compass directions (W = north), so we can run "outward".
+  await page.keyboard.press('KeyM');
+  await page.keyboard.press('Backquote'); // open the tuning panel (teleport dropdown)
+  const corners: { id: string; keys: string[] }[] = [
+    { id: 'nw-corner', keys: ['KeyW', 'KeyA'] },
+    { id: 'ne-corner', keys: ['KeyW', 'KeyD'] },
+    { id: 'se-corner', keys: ['KeyS', 'KeyD'] },
+    { id: 'sw-corner', keys: ['KeyS', 'KeyA'] },
+  ];
+  const places = await page.evaluate(() => window.__game!.places);
+
+  for (const c of corners) {
+    const label = places.find((p) => p.id === c.id)!.label;
+    await page.getByTestId('teleport').selectOption({ label });
+    await page.locator('canvas').focus();
+    await gameReady(page);
+    const at = await page.evaluate(() => ({ dog: window.__game!.dog, map: window.__game!.map, street: window.__game!.street }));
+    console.log(`[${testInfo.project.name}] ${c.id}: ${at.map.loadedTiles} tiles, street ${at.street}`);
+    expect(at.map.loadedTiles).toBeGreaterThan(0);
+    expect(at.dog.insideObstacle).toBe(false);
+
+    // Run outward toward the corner; the dog must stay inside the boundary and outside buildings.
+    let escaped = false;
+    let inBuilding = false;
+    await hold(page, ['ShiftLeft', ...c.keys], 2500, async () => {
+      const d = await page.evaluate(() => window.__game!.dog);
+      if (!d.insideBoundary) escaped = true;
+      if (d.insideObstacle) inBuilding = true;
+    });
+    expect(escaped, `${c.id}: dog left the play area`).toBe(false);
+    expect(inBuilding, `${c.id}: dog inside a building`).toBe(false);
+  }
+  expect(await page.evaluate(() => window.__game!.map.errors)).toBe(0);
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('running around town never ends up inside a building', async ({ page }) => {
+  test.setTimeout(90_000);
+  const errors = collectErrors(page);
+  await page.goto('/?at=43rd-avenue-h');
+  await gameReady(page);
+  await page.keyboard.press('KeyM'); // compass-relative controls
+  let inBuilding = false;
+  const check = async () => {
+    if ((await page.evaluate(() => window.__game!.dog.insideObstacle))) inBuilding = true;
+  };
+  for (const keys of [['KeyW'], ['KeyD'], ['KeyS'], ['KeyA'], ['KeyW', 'KeyD'], ['KeyS', 'KeyA']]) {
+    await hold(page, ['ShiftLeft', ...keys], 2500, check);
+  }
+  expect(inBuilding).toBe(false);
+  expect(errors, errors.join('\n')).toEqual([]);
 });

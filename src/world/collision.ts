@@ -140,6 +140,19 @@ export class CollisionWorld {
     return { x, z, collided };
   }
 
+  /** True if the circle penetrates any obstacle by more than `tolerance` meters. */
+  overlapsCircle(x: number, z: number, radius: number, tolerance = 0.02): boolean {
+    const r = Math.max(0, radius - tolerance);
+    for (const o of this.query({ minX: x - r, minZ: z - r, maxX: x + r, maxZ: z + r })) {
+      const b = o.bounds;
+      if (x + r < b.minX || x - r > b.maxX || z + r < b.minZ || z - r > b.maxZ) continue;
+      const pts = o.def.footprint;
+      if (pointInPolygon(x, z, pts)) return true;
+      if (closestPointOnPolygon(x, z, pts).distSq < r * r) return true;
+    }
+    return false;
+  }
+
   /**
    * First obstacle hit along the 3D segment from -> to.
    * Returns the fraction t in [0,1] of the hit, or null if clear.

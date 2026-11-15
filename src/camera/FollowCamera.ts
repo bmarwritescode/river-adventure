@@ -29,6 +29,8 @@ export class FollowCamera {
   private timeSinceOrbit = Infinity;
   private initialized = false;
   private readonly pose: DogPose = { x: 0, y: 0, z: 0, heading: 0 };
+  /** Debug top-down view (M): straight down from high above the dog, north up. */
+  topDown = false;
 
   constructor(
     private readonly dog: DogController,
@@ -52,8 +54,9 @@ export class FollowCamera {
 
   /** Convert a local input vector (x = right, y = forward) into a world XZ direction. */
   inputToWorld(right: number, forward: number): Vec2 {
-    const f = headingToForward(this.yaw);
-    const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw);
+    const yaw = this.topDown ? 0 : this.yaw; // top-down: W = north (screen up)
+    const f = headingToForward(yaw);
+    const rx = Math.cos(yaw), rz = -Math.sin(yaw);
     return { x: f.x * forward + rx * right, z: f.z * forward + rz * right };
   }
 
@@ -74,6 +77,11 @@ export class FollowCamera {
     const t = TUNING.camera;
     const c = this.dog.profile.camera;
     const pose = this.dog.interpolatedPose(alpha, this.pose);
+    if (this.topDown) {
+      this.updateTopDown(pose);
+      return;
+    }
+    if (this.camera.up.y !== 1) this.camera.up.set(0, 1, 0);
 
     // --- Orbit & zoom input ---------------------------------------------
     const { dx, dy } = this.input.consumeMouseDelta();
@@ -140,5 +148,16 @@ export class FollowCamera {
     const py = Math.max(T.y + oy * d, getGroundHeight(px, pz) + t.groundClearance);
     this.camera.position.set(px, py, pz);
     this.camera.lookAt(T);
+  }
+
+  private updateTopDown(pose: DogPose): void {
+    const t = TUNING.camera;
+    this.input.consumeMouseDelta();
+    const wheel = this.input.consumeWheel();
+    if (wheel !== 0) t.topDownHeight = clamp(t.topDownHeight * (1 + t.zoomStep * 2 * wheel), t.topDownMin, t.topDownMax);
+    this.camera.up.set(0, 0, -1); // north at the top of the screen
+    this.camera.position.set(pose.x, pose.y + t.topDownHeight, pose.z);
+    this.camera.lookAt(pose.x, pose.y, pose.z);
+    this.target.set(pose.x, pose.y + this.dog.profile.camera.lookHeight, pose.z); // resume smoothly
   }
 }

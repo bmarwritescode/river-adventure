@@ -18,7 +18,9 @@ npx playwright install chromium webkit   # once, for tests
 npm run dev      # http://localhost:5173 (hot reload)
 npm run build    # type-check + production build to dist/
 npm run preview  # serve the built dist/
-npm test         # Playwright smoke test (Chromium + WebKit)
+npm test         # unit tests (Vitest) + Playwright smoke tests (Chromium + WebKit)
+npm run test:unit
+npm run test:e2e
 ```
 
 `dist/` is a static site (relative paths), so it can be shared by uploading it to any static host.
@@ -37,7 +39,11 @@ npm test         # Playwright smoke test (Chromium + WebKit)
 | Mouse wheel | Zoom |
 | P | Copy dog position as `{ x: …, z: … }` |
 | T | Show/hide trigger zones |
-| ` (backtick) | Tuning panel |
+| M | Top-down map view (wheel zooms; W = north while it's on) |
+| ` (backtick) | Tuning panel (includes the **Teleport** dropdown) |
+
+Start somewhere specific with `?at=<place id>`, e.g. `http://localhost:5173/?at=51st-duval`
+(ids are in `src/config/places.ts`).
 
 See `CLAUDE.md` for architecture contracts and conventions.
 
@@ -53,12 +59,19 @@ npm run map:build -- --regen-boundary   # re-derive tools/map/boundary.geojson f
 npm run map:build -- --regen-origin     # re-pin the origin (moves every world coordinate!)
 ```
 
+Takes ~30 s (5 s once the elevation data is cached). Extra flags: `--skip-terrain` (flat map),
+`--refresh-terrain` (re-download elevation).
+
 Outputs:
 - `src/world/mapOrigin.json`: map origin (E 45th St & Duval St), shared by the pipeline and the game.
 - `tools/map/boundary.geojson`: play-area boundary. Hand-editable; paste into geojson.io to view or edit.
 - `tools/map/out/preview.png`: preview of streets, buildings, boundary and origin.
+- `public/map/index.json`, `public/map/tiles/{i}_{j}.json`: 250 m map tiles (data, not meshes).
+- `public/map/terrain.bin`: USGS 3DEP heightmap (5 m grid).
+
+The generated `public/map` files are committed, so the game runs without Python.
 
 ## Attribution
 
 Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), available under the
-Open Database License (ODbL).
+Open Database License (ODbL). Elevation data: U.S. Geological Survey 3D Elevation Program (public domain).

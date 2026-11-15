@@ -20,6 +20,28 @@ export const TUNING = {
     /** Broadphase grid cell size, meters. */
     gridCellSize: 16,
   },
+  map: {
+    /** Tiles within this distance of the dog are loaded, meters. */
+    loadRadius: 400,
+    /** Tiles beyond this distance are unloaded (keep > loadRadius to avoid thrashing), meters. */
+    unloadRadius: 550,
+    /** Ground texture resolution per 250 m tile, pixels (1024 = ~24 cm per pixel). */
+    textureSize: 1024,
+    /** Background tile builders. */
+    workers: 2,
+    /** Tile requests outstanding at once. */
+    maxInFlight: 4,
+    /** Finished tiles turned into meshes per frame (each uploads a texture). */
+    maxFinalizePerFrame: 1,
+    /** Fog start / end as a fraction of loadRadius, so the loaded edge is hidden. */
+    fogNearFraction: 0.45,
+    fogFarFraction: 0.92,
+    skyColor: 0xa9cbe6,
+    /** Thickness of the invisible boundary walls, meters. */
+    boundaryWallThickness: 3,
+    /** How long the nearest-street lookup is cached, seconds. */
+    streetLookupInterval: 0.2,
+  },
   triggers: {
     /** Extra distance past a zone's edge before "exit" fires (hysteresis), meters. */
     exitMargin: 0.3,
@@ -27,7 +49,7 @@ export const TUNING = {
   camera: {
     fov: 60,
     near: 0.05,
-    far: 800,
+    far: 1200,
     /** Radians of orbit per pixel of mouse movement. */
     orbitSensitivity: 0.0032,
     minPitch: -0.15,
@@ -51,6 +73,10 @@ export const TUNING = {
     recenterDelay: 1.5,
     /** Only recenter if the dog faces within this angle of the camera's view (radians). */
     recenterMaxAngle: 2.0,
+    /** Top-down debug view (M): height above the dog, meters (wheel zooms). */
+    topDownHeight: 250,
+    topDownMin: 30,
+    topDownMax: 1500,
   },
   visual: {
     /** Vertical bob amplitude per state, meters. */
@@ -78,7 +104,7 @@ export const TUNING = {
     sunIntensity: 2.6,
     hemiIntensity: 1.1,
     /** Half-size of the shadow camera box around the dog, meters. */
-    shadowRadius: 45,
+    shadowRadius: 50,
     shadowMapSize: 2048,
   },
   debug: {

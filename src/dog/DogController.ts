@@ -119,8 +119,16 @@ export class DogController {
     const startX = this.position.x, startZ = this.position.z;
     let x = startX, z = startZ;
     let collided = false;
+    // If we start inside something (e.g. a tile just loaded around us), let push-out move us free.
+    const startedClear = !this.collision.overlapsCircle(x, z, r);
     for (let i = 0; i < subSteps; i++) {
       const res = this.collision.resolveCircle(x + (fwd.x * dist) / subSteps, z + (fwd.z * dist) / subSteps, r);
+      // In a gap narrower than the dog (or a sharp wedge between obstacles) push-outs can fight each
+      // other; if we are still inside something, keep the last good position instead of jittering in.
+      if (startedClear && res.collided && this.collision.overlapsCircle(res.x, res.z, r)) {
+        collided = true;
+        break;
+      }
       x = res.x; z = res.z;
       collided ||= res.collided;
     }

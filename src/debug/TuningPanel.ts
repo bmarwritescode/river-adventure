@@ -1,5 +1,6 @@
 import GUI from 'lil-gui';
 import type { DogProfile } from '../config/dogProfiles';
+import { PLACES } from '../config/places';
 import { TUNING } from '../config/tuning';
 
 export interface TuningPanelHooks {
@@ -11,6 +12,10 @@ export interface TuningPanelHooks {
   triggerZonesToggled(): void;
   /** Reset camera framing to the profile's defaults. */
   resetCamera(): void;
+  /** Shadow range / resolution changed. */
+  shadowsChanged(): void;
+  /** Jump the dog to a named place (id from config/places.ts). */
+  teleport(placeId: string): void;
   toast(msg: string): void;
 }
 
@@ -26,6 +31,17 @@ export class TuningPanel {
   constructor(profile: DogProfile, hooks: TuningPanelHooks) {
     const gui = this.gui;
     gui.hide();
+
+    // Teleport: pick a named spot (config/places.ts) to jump there instantly.
+    const tp = { place: '' };
+    const options: Record<string, string> = { '— teleport to… —': '' };
+    for (const p of PLACES) options[p.label] = p.id;
+    const tpCtl = gui.add(tp, 'place', options).name('Teleport').onChange((id: string) => {
+      if (id) hooks.teleport(id);
+      tp.place = '';
+      tpCtl.updateDisplay();
+    });
+    tpCtl.domElement.querySelector('select')?.setAttribute('data-testid', 'teleport');
 
     const dog = gui.addFolder(`Dog: ${profile.displayName}`);
     const sp = dog.addFolder('Speeds (m/s)');
@@ -76,6 +92,17 @@ export class TuningPanel {
     for (const k of Object.keys(TUNING.visual) as (keyof typeof TUNING.visual)[]) {
       vis.add(TUNING.visual, k, k.includes('Pitch') ? -2 : 0, k.startsWith('stride') ? 5 : k.startsWith('tail') ? 20 : 2, 0.005);
     }
+
+    const m = gui.addFolder('Map streaming').close();
+    m.add(TUNING.map, 'loadRadius', 150, 1200, 10).name('load radius (m)');
+    m.add(TUNING.map, 'unloadRadius', 200, 1500, 10).name('unload radius (m)');
+    m.add(TUNING.map, 'fogNearFraction', 0, 1, 0.01).name('fog start (× load radius)');
+    m.add(TUNING.map, 'fogFarFraction', 0.2, 1.5, 0.01).name('fog end (× load radius)');
+    m.add(TUNING.map, 'maxInFlight', 1, 16, 1).name('tile requests in flight');
+    m.add(TUNING.map, 'maxFinalizePerFrame', 1, 8, 1).name('tiles finalized / frame');
+    m.add(TUNING.map, 'textureSize', [256, 512, 1024, 2048]).name('ground texture px (new tiles)');
+    m.add(TUNING.lighting, 'shadowRadius', 10, 200, 1).name('shadow range (m)').onFinishChange(hooks.shadowsChanged);
+    m.add(TUNING.lighting, 'shadowMapSize', [512, 1024, 2048, 4096]).name('shadow map px').onFinishChange(hooks.shadowsChanged);
 
     const w = gui.addFolder('World / sim').close();
     w.add(TUNING.world, 'gravity', 1, 40, 0.1).name('gravity (m/s²)');

@@ -7,10 +7,13 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "playwright test",
-    "map:build": "uv run --project tools/map python tools/map/build_map.py"
+    "test": "vitest run && playwright test",
+    "map:build": "uv run --project tools/map python tools/map/build_map.py",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
+    "earcut": "^3.2.4",
     "lil-gui": "^0.21.0",
     "three": "^0.187.0"
   },
@@ -18,7 +21,8 @@
     "@playwright/test": "^1.61.1",
     "@types/three": "^0.187.0",
     "typescript": "^7.0.2",
-    "vite": "^7.3.8"
+    "vite": "^7.3.8",
+    "vitest": "^5.1.0"
   },
   "engines": {
     "node": ">=22.12"

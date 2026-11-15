@@ -88,6 +88,15 @@ The owner is an experienced programmer but new to game dev. Explain game-dev-spe
 - The origin is pinned in `src/world/mapOrigin.json` (shared by Python and TS). Don't re-pin casually: it shifts all coordinates.
 - The play-area boundary lives in `tools/map/boundary.geojson` (lat/lon), the editable source of truth.
 - OSM attribution ("© OpenStreetMap contributors") must stay visible in the game and README.
+- Output: `public/map/index.json` + `tiles/{i}_{j}.json` (250 m world-grid tiles, DATA not meshes) +
+  `terrain.bin` (Int16 cm, 5 m grid aligned to tiles). Schema: `src/world/map/types.ts` ↔ `tools/map/tiles.py`;
+  bump `MAP_DATA_VERSION` in both when it changes. Generated files are committed.
+- Game side (`src/world/map/`): `MapWorld` streams tiles around the dog; `tileWorker.ts` builds meshes in a
+  Web Worker (pure builders in `buildTile.ts`). Per tile: ONE ground mesh (terrain grid with the surface layers
+  painted into a texture; colors in `src/config/mapStyle.ts`) + ONE merged building mesh. Building footprints
+  go to `CollisionWorld`; the boundary is invisible collision walls. The dog is frozen until the tiles around it
+  (and their collision) are loaded.
+- Named places (spawn, teleport list, test zones) live in `src/config/places.ts`.
 
 ### Code conventions
 
@@ -110,7 +119,8 @@ The owner is an experienced programmer but new to game dev. Explain game-dev-spe
 ## Workflow rules
 
 - Work in small steps. After each step run **`npm run build`** (type-check + build) and **`npm test`**
-  (Playwright smoke test, Chromium + WebKit) and fix failures before saying it's done.
+  (Vitest unit tests in `src/**/*.test.ts` + Playwright smoke tests in `tests/`, Chromium + WebKit) and fix
+  failures before saying it's done.
 - Use git; commit after each working step with a clear message.
 - When something is ambiguous, state the assumption rather than silently guessing; ask only if a wrong guess is costly.
 - At the end of each task report: what changed, how to run/test it, what to try or tune.
@@ -121,4 +131,7 @@ The owner is an experienced programmer but new to game dev. Explain game-dev-spe
   shell must run `. ~/.nvm/nvm.sh; nvm use` before npm commands (sourcing exits 3; ignore it, don't `&&` it).
 - Playwright's WebKit doesn't populate `MouseEvent.movementX` for synthetic events; drag-orbit therefore uses
   clientX/Y deltas (pointer-lock mode still uses movementX, which real Safari supports).
-- Headless Chromium uses software GL, so its FPS numbers are meaningless; WebKit headless is closer to real.
+- Headless Chromium uses software GL by default (FPS meaningless, ~6 fps). For real GPU numbers launch it with
+  `--use-angle=metal --enable-gpu --ignore-gpu-blocklist`. Slow frame rates also expose streaming bugs, so keep
+  testing in the slow default too.
+- Vite must run under Node 22: source nvm *before* starting `npx vite` in the same command.
