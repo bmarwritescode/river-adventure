@@ -103,13 +103,13 @@ export const MAIN_DOG: DogProfile = {
     chestWidth: 0.24,
   },
   speeds: {
-    walk: 1.5,
-    trot: 3.5,
-    run: 12.0,
+    walk: 3.0,
+    trot: 5.0,
+    run: 16.0,
     sniff: 0.45,
   },
   movement: {
-    acceleration: 9.0,
+    acceleration: 12.0,
     deceleration: 6.0,
     brakeDeceleration: 14.0,
     turnRateSlow: 7.0,
@@ -117,8 +117,8 @@ export const MAIN_DOG: DogProfile = {
     airControl: 0.25,
   },
   jump: {
-    height: 0.5,
-    cooldown: 0.15,
+    height: 2.0,
+    cooldown: 0.05,
   },
   behavior: {
     autoSitAfter: 12,

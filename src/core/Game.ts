@@ -202,6 +202,7 @@ export class Game {
       `street ${this.street ? `${this.street.name} (${this.street.distance.toFixed(0)} m)` : '-'}\n` +
       `zones  ${inside.length ? inside.join(', ') : '-'}\n` +
       `pace   ${this.intent.pace}${this.walkToggled ? ' (walk toggle)' : ''}\n` +
+      `dog    ${this.dogVisual.kind === 'model' ? `rigged model (${this.dogVisual.clipNames.length} clips)` : `box (${this.dogVisual.kind})`}\n` +
       `draws  ${info.calls}   tris ${(info.triangles / 1000).toFixed(0)}k\n` +
       (st ? `tiles  ${st.loaded} loaded, ${st.inFlight + st.queued} pending (last build ${st.lastBuildMs.toFixed(0)} ms)` : 'tiles  loading…'),
     );
