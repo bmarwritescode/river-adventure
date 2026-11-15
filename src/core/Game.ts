@@ -344,6 +344,7 @@ export class Game {
         return {
           loadedTiles: s.loaded, pendingTiles: s.inFlight + s.queued, errors: game.map.errors,
           dressedBuildings: game.map.dressedStats.buildings, dressedProps: game.map.dressedStats.props,
+          landmarks: game.map.dressedStats.landmarks,
         };
       },
       get street() { return game.street?.name ?? null; },

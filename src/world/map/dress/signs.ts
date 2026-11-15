@@ -3,12 +3,14 @@ import type { TileSign } from '../types';
 import type { DressContext, LabelRequest } from './houses';
 
 /**
- * Text signs: street-name blades, STOP text, shop fronts. Each sign is a textured quad; all of a
- * tile's sign texts are painted into one small atlas (one texture + one draw call per tile).
+ * Text signs: street-name blades, STOP text, shop fronts, landmark lettering. Each sign is a textured
+ * quad; all of a tile's sign texts are painted into one small atlas (one texture + one draw call per
+ * tile), shelf-packed. Labels without a background are cut-out letters (the material alpha-tests).
  */
 
-const ROW = 64; // atlas row height, px
-const ATLAS_W = 512;
+const ROW = 64; // atlas row height, px (a label can take several rows for sharper big lettering)
+const ATLAS_W = 1024;
+const PAD = 2; // px between packed labels (keeps mipmaps from bleeding)
 
 export interface SignMeshResult {
   mesh: MeshArrays & { uvs: Float32Array };
@@ -21,12 +23,15 @@ export interface SignPainter {
   fillStyle: string | CanvasGradient | CanvasPattern;
   strokeStyle: string | CanvasGradient | CanvasPattern;
   lineWidth: number;
+  lineJoin: CanvasLineJoin;
   font: string;
   textAlign: CanvasTextAlign;
   textBaseline: CanvasTextBaseline;
+  globalCompositeOperation: GlobalCompositeOperation;
   fillRect(x: number, y: number, w: number, h: number): void;
   strokeRect(x: number, y: number, w: number, h: number): void;
   fillText(text: string, x: number, y: number, maxWidth?: number): void;
+  strokeText(text: string, x: number, y: number, maxWidth?: number): void;
   measureText(text: string): { width: number };
   getImageData(x: number, y: number, w: number, h: number): { data: Uint8ClampedArray };
 }
@@ -49,51 +54,144 @@ export function streetSignLabels(ctx: DressContext, signs: TileSign[] | undefine
   return out;
 }
 
+const FONTS = {
+  sans: (px: number) => `bold ${px}px "Helvetica Neue", Helvetica, Arial, sans-serif`,
+  block: (px: number) => `900 ${px}px "Arial Black", "Helvetica Neue", Helvetica, Arial, sans-serif`,
+  script: (px: number) => `italic bold ${px}px "Brush Script MT", "Snell Roundhand", Georgia, serif`,
+} as const;
+
+/** Deterministic hash -> 0..1 (sequin pattern). */
+const hash = (a: number, b: number): number => {
+  let h = Math.imul(a ^ 0x27d4eb2d, 0x9e3779b1) ^ Math.imul(b + 0x165667b1, 0x85ebca6b);
+  h ^= h >>> 15;
+  h = Math.imul(h, 0xc2b2ae35);
+  return ((h ^ (h >>> 13)) >>> 0) / 4294967296;
+};
+
+function hexToRgb(hex: string): [number, number, number] {
+  const v = parseInt(hex.replace('#', ''), 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+}
+
+/** Draw text centred at (cx, cy), fitted into maxW, with optional letter spacing (fraction of size). */
+function drawText(g: SignPainter, q: Quad, cx: number, cy: number, maxW: number, rowH: number): void {
+  const fontOf = FONTS[q.font ?? 'sans'];
+  let size = Math.round(rowH * (q.font === 'script' ? 0.78 : q.font === 'block' ? 0.95 : 0.62));
+  const spacing = q.spacing ?? 0;
+  const measure = (): number => {
+    g.font = fontOf(size);
+    if (!spacing) return g.measureText(q.text).width;
+    let w = 0;
+    for (const ch of q.text) w += g.measureText(ch).width;
+    return w + spacing * size * (q.text.length - 1);
+  };
+  let w = measure();
+  if (w > maxW) {
+    size = Math.max(10, Math.floor((size * maxW) / w));
+    w = measure();
+  }
+  g.textBaseline = 'middle';
+  const paint = (stroke: boolean): void => {
+    if (!spacing) {
+      g.textAlign = 'center';
+      if (stroke) g.strokeText(q.text, cx, cy);
+      else g.fillText(q.text, cx, cy);
+      return;
+    }
+    g.textAlign = 'left';
+    let x = cx - w / 2;
+    for (const ch of q.text) {
+      if (stroke) g.strokeText(ch, x, cy);
+      else g.fillText(ch, x, cy);
+      x += g.measureText(ch).width + spacing * size;
+    }
+  };
+  if (q.outline) {
+    g.strokeStyle = q.outline;
+    g.lineWidth = Math.max(2, size * 0.14);
+    g.lineJoin = 'round';
+    paint(true);
+  }
+  g.fillStyle = q.foreground;
+  paint(false);
+}
+
+/**
+ * Sequins: tiny tiles of the letter color at varied brightness with a few white glints, painted only
+ * where the letters already are ('source-atop'). Reads as the glittery Home Slice sign.
+ */
+function sequins(g: SignPainter, x0: number, y0: number, w: number, h: number, base: string, seed: number): void {
+  const [r, gg, b] = hexToRgb(base);
+  const cell = 3;
+  g.globalCompositeOperation = 'source-atop';
+  for (let y = 0; y < h; y += cell) {
+    for (let x = 0; x < w; x += cell) {
+      const v = hash(x + seed * 131, y);
+      let f = 0.8 + v * 0.5;
+      if (v > 0.965) f = 1.9; // glint
+      const c = (k: number): number => Math.max(0, Math.min(255, Math.round(k * f)));
+      g.fillStyle = `rgb(${c(r)},${c(gg)},${c(b)})`;
+      g.fillRect(x0 + x, y0 + y, cell, cell);
+    }
+  }
+  g.globalCompositeOperation = 'source-over';
+}
+
 export function buildSignMesh(labels: LabelRequest[], blades: Quad[], newCanvas: (w: number, h: number) => SignPainter | null): SignMeshResult | null {
   const quads: Quad[] = [
-    ...labels.map((l) => ({ ...l, twoSided: false, foreground: '#f7f4ea', border: false })),
+    ...labels.map((l) => ({ ...l, twoSided: l.twoSided ?? false, foreground: l.foreground ?? '#f7f4ea', border: l.border ?? false })),
     ...blades,
   ];
   if (!quads.length) return null;
-  const H = quads.length * ROW;
+
+  // Shelf packing: tallest rows first, left to right.
+  const order = quads.map((_, i) => i).sort((a, b) => (quads[b]!.rows ?? 1) - (quads[a]!.rows ?? 1) || a - b);
+  const slots: { x: number; y: number; w: number; h: number }[] = new Array(quads.length);
+  let sx = 0, sy = 0, shelfH = 0;
+  for (const i of order) {
+    const q = quads[i]!;
+    const h = ROW * (q.rows ?? 1);
+    const w = Math.min(ATLAS_W, Math.round((h * q.width) / q.height));
+    if (sx + w > ATLAS_W) {
+      sy += shelfH + PAD;
+      sx = 0;
+      shelfH = 0;
+    }
+    slots[i] = { x: sx, y: sy, w, h };
+    sx += w + PAD;
+    shelfH = Math.max(shelfH, h);
+  }
+  const H = Math.ceil((sy + shelfH) / 4) * 4;
   const g = newCanvas(ATLAS_W, H);
   if (!g) return null;
 
   const pos: number[] = [], nor: number[] = [], uv: number[] = [], idx: number[] = [];
   quads.forEach((q, i) => {
-    const pw = Math.min(ATLAS_W, Math.round((ROW * q.width) / q.height));
-    const y0 = i * ROW;
-    g.fillStyle = q.background;
-    g.fillRect(0, y0, pw, ROW);
+    const { x: px0, y: py0, w: pw, h: ph } = slots[i]!;
+    if (q.background) {
+      g.fillStyle = q.background;
+      g.fillRect(px0, py0, pw, ph);
+    }
     if (q.border) {
       g.strokeStyle = q.foreground;
       g.lineWidth = 3;
-      g.strokeRect(4, y0 + 4, pw - 8, ROW - 8);
+      g.strokeRect(px0 + 4, py0 + 4, pw - 8, ph - 8);
     }
-    g.fillStyle = q.foreground;
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    let size = 40;
-    g.font = `bold ${size}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
-    const maxW = pw - 18;
-    const w = g.measureText(q.text).width;
-    if (w > maxW) {
-      size = Math.max(14, Math.floor((size * maxW) / w));
-      g.font = `bold ${size}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
-    }
-    g.fillText(q.text, pw / 2, y0 + ROW / 2 + 2);
+    drawText(g, q, px0 + pw / 2, py0 + ph / 2 + (q.font === 'script' ? 0 : 2), pw - 18, ph);
+    if (q.sequins) sequins(g, px0, py0, pw, ph, q.foreground, i + 1);
 
-    const u0 = 0, u1 = pw / ATLAS_W, v0 = y0 / H, v1 = (y0 + ROW) / H; // v0 = top row (flipY off)
+    // Half-texel inset so neighbours in the atlas never bleed in.
+    const u0 = (px0 + 0.5) / ATLAS_W, u1 = (px0 + pw - 0.5) / ATLAS_W, v0 = (py0 + 0.5) / H, v1 = (py0 + ph - 0.5) / H;
     const rx = Math.cos(q.rot), rz = -Math.sin(q.rot); // local +X (text direction)
     const nx = Math.sin(q.rot), nz = Math.cos(q.rot); // local +Z (facing)
     const hw = q.width / 2, hh = q.height / 2;
-    const addFace = (sx: number, off: number, n: number): void => {
+    const addFace = (sxn: number, off: number, n: number): void => {
       const base = pos.length / 3;
       const cx = q.x + nx * off, cz = q.z + nz * off;
-      // BL, BR, TR, TL as seen by the viewer of this face (sx = +1 front, −1 back: mirrored X)
+      // BL, BR, TR, TL as seen by the viewer of this face (sxn = +1 front, −1 back: mirrored X)
       const corners: [number, number, number, number][] = [[-hw, -hh, u0, v1], [hw, -hh, u1, v1], [hw, hh, u1, v0], [-hw, hh, u0, v0]];
       for (const [a, b, u, v] of corners) {
-        pos.push(cx + rx * a * sx, q.y + b, cz + rz * a * sx);
+        pos.push(cx + rx * a * sxn, q.y + b, cz + rz * a * sxn);
         nor.push(nx * n, 0, nz * n);
         uv.push(u, v);
       }

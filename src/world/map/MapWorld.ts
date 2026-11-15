@@ -63,7 +63,7 @@ export class MapWorld {
     vertexColors: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
   });
   /** Dressing stats of the loaded tiles (dressed buildings, props, triangles). */
-  dressedStats = { buildings: 0, props: 0 };
+  dressedStats = { buildings: 0, props: 0, landmarks: 0 };
   private readonly maxAnisotropy: number;
   private lastBuildMs = 0;
   errors = 0;
@@ -337,7 +337,12 @@ export class MapWorld {
       tex.anisotropy = this.maxAnisotropy;
       tex.needsUpdate = true;
       this.renderer.initTexture(tex);
-      const mat = new THREE.MeshLambertMaterial({ map: tex });
+      // alphaTest: cut-out letters (e.g. sign letters standing on a parapet); three.js also uses it
+      // for the shadow pass, so they cast letter-shaped shadows.
+      // A little self-illumination: painted signs and sequins catch the sky even on a shaded facade.
+      const mat = new THREE.MeshLambertMaterial({
+        map: tex, alphaTest: 0.5, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: TUNING.map.signGlow,
+      });
       const signs = new THREE.Mesh(this.geometry(t.signs.mesh), mat);
       signs.castShadow = true;
       signs.receiveShadow = true;
@@ -349,6 +354,7 @@ export class MapWorld {
     if (t.dressed) {
       this.dressedStats.buildings += t.dressed.buildings;
       this.dressedStats.props += t.dressed.props;
+      this.dressedStats.landmarks += t.dressed.landmarks;
     }
     this.group.add(group);
 
@@ -395,6 +401,7 @@ export class MapWorld {
     if (t.dressed) {
       this.dressedStats.buildings -= t.dressed.buildings;
       this.dressedStats.props -= t.dressed.props;
+      this.dressedStats.landmarks -= t.dressed.landmarks;
     }
   }
 

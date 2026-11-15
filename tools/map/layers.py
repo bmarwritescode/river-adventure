@@ -28,6 +28,9 @@ ROAD_WIDTH = {
     "residential": 7.5, "unclassified": 7.0, "living_street": 6.0, "road": 7.0, "service": 4.5,
 }
 SERVICE_WIDTH = {"alley": 3.5, "driveway": 3.0, "parking_aisle": 5.0, "drive-through": 3.5}
+# Measured curb-to-curb widths (aerial imagery) for named streets OSM has no width tag for.
+# Duval: ~10 m between 51st and 53rd, cars parked along both curbs.
+STREET_WIDTH_BY_NAME = {"Duval Street": 10.0}
 # One carriageway of a divided road is narrower than the default (which assumes both directions).
 ONEWAY_FACTOR = 0.6
 PATH_WIDTH = {"footway": 1.6, "path": 1.5, "cycleway": 1.8, "steps": 1.6, "pedestrian": 4.0, "track": 3.0,
@@ -224,6 +227,8 @@ def road_width(tags: dict) -> float:
     w = parse_length(tags.get("width"))
     if w and 2.0 <= w <= 40.0:
         return w
+    if hw != "service" and tags.get("name") in STREET_WIDTH_BY_NAME:
+        return STREET_WIDTH_BY_NAME[tags["name"]]
     lanes = parse_length(tags.get("lanes"))
     if lanes and 1 <= lanes <= 12 and hw != "service":
         return max(base, lanes * 3.3)

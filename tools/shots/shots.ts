@@ -38,6 +38,30 @@ const cam = (p: { x: number; z: number }, y: number, l: { x: number; z: number }
 const northHeading = Math.atan2(-d.x, -d.z); // heading of "up Duval" (0 = −Z, CCW)
 const dogAt = (t: number, side: number, heading = northHeading) => ({ ...at(t, side), heading });
 
+// Home Slice (world coords from the OSM footprint, see tools/map/landmarks).
+const HS = {
+  front: { x: 584.4, z: -1005.8 }, // middle of the storefront (north face)
+  patio: { x: 566.0, z: -997.0 },
+  center: { x: 576, z: -992 },
+  lot: { x: 597.5, z: -1030.5 }, // lot entrance off 53rd
+  lotDog: { x: 588.5, z: -1018.0 },
+  dogEye: { x: 590.5, z: -1022.0 },
+  duvalWest: { x: 544.0, z: -1010.0 },
+  patioDog: { x: 556.0, z: -1003.0 },
+  cornerNW: { x: 563.0, z: -1053.0 },
+  cornerLook: { x: 578.0, z: -1003.0 },
+  aerial: { x: 540.0, z: -1050.0 },
+  signCam: { x: 593.8, z: -1014.4 },
+  signLook: { x: 588.0, z: -1003.9 },
+  underCam: { x: 563.9, z: -999.4 },
+  underLook: { x: 574.5, z: -1013.6 },
+  underDog: { x: 566.5, z: -1004.0 },
+  turfCam: { x: 553.9, z: -990.6 },
+  turfLook: { x: 562.7, z: -993.2 },
+  turfDog: { x: 558.5, z: -990.5 },
+  southHeading: Math.PI + Math.atan2(-0.49, 0.87), // facing roughly south-south-west down Duval
+};
+
 const VIEWS: View[] = [
   { name: 'dog-follow', dog: dogAt(0.3, -7.2) }, // normal gameplay camera on the west sidewalk
   { name: 'street-north', cam: cam(at(0.04, -2), 1.7, at(0.45, 0), 2.5), dog: dogAt(0.06, -6) },
@@ -48,6 +72,18 @@ const VIEWS: View[] = [
   { name: 'sign-52nd', cam: cam(at(0.49, 0.5), 2.7, at(0.517, 5.7), 3.0), dog: dogAt(0.44, -7) },
   { name: 'dog-eye', cam: cam(at(0.22, -7), 0.7, at(0.3, 10), 1.6), dog: dogAt(0.2, -7.5) },
   { name: 'aerial', cam: cam(at(-0.15, -70), 75, at(0.5, 0), 0), dog: dogAt(0.3, -7.2) },
+  // Hero location: Home Slice Pizza, 501 E 53rd (SE corner of Duval & 53rd). Storefront faces north
+  // onto its parking lot; the patio is on the west side, facing Duval.
+  { name: 'hs-front', cam: cam(HS.lot, 1.7, HS.front, 3.6), dog: { ...HS.lotDog, heading: HS.southHeading } },
+  { name: 'hs-patio', cam: cam(HS.duvalWest, 1.7, HS.patio, 2.4), dog: { ...HS.patioDog, heading: HS.southHeading } },
+  { name: 'hs-corner', cam: cam(HS.cornerNW, 2.0, HS.cornerLook, 2.5), dog: { ...HS.patioDog, heading: HS.southHeading } },
+  { name: 'hs-dog', cam: cam(HS.dogEye, 0.7, HS.front, 3.0), dog: { ...HS.lotDog, heading: HS.southHeading } },
+  { name: 'hs-aerial', cam: cam(HS.aerial, 38, HS.center, 0), dog: { ...HS.lotDog, heading: HS.southHeading } },
+  // Hyde Park Animal Clinic (NW corner of Duval & 51st): tall privacy fence around its yard.
+  { name: 'vet-corner', cam: cam({ x: 454.0, z: -811.0 }, 1.7, { x: 425.0, z: -846.0 }, 1.6), dog: dogAt(0.06, -6) },
+  { name: 'hs-sign', cam: cam(HS.signCam, 1.7, HS.signLook, 3.6), dog: { ...HS.lotDog, heading: HS.southHeading } },
+  { name: 'hs-under', cam: cam(HS.underCam, 1.5, HS.underLook, 1.7), dog: { ...HS.underDog, heading: HS.southHeading } },
+  { name: 'hs-turf', cam: cam(HS.turfCam, 0.8, HS.turfLook, 0.5), dog: { ...HS.turfDog, heading: HS.southHeading } },
 ];
 
 async function waitForServer(url: string, ms = 30_000): Promise<void> {
@@ -81,6 +117,9 @@ async function main(): Promise<void> {
       ? await webkit.launch()
       : await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
+    // Surface game warnings/errors (e.g. a tile that failed to build in the worker).
+    page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`  [browser ${m.type()}] ${m.text()}`); });
+    page.on('pageerror', (e) => console.log(`  [page error] ${e.message}`));
     page.on('pageerror', (err) => console.error('  page error:', err.message));
     console.log(`[shots] -> ${outDir}`);
     for (const v of VIEWS) if (!only || only.includes(v.name)) await shoot(page, v);

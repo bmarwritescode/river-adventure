@@ -13,7 +13,9 @@ export const MAP_STYLE = {
     wood: '#5f8a4c',
     pitch: '#97b964',
     bed: '#6e5a45', // mulch / bare dirt along foundations
-    parking: '#8d8a84',
+    turf: '#5aa83c', // artificial turf (kids' area at Home Slice)
+    parking: '#7d7c79',
+    patio: '#a39d93', // stained concrete patio slab
     water: '#5b8fb8',
     driveway: '#c4beb1',
     walk: '#cdc8bc',
@@ -75,9 +77,46 @@ export const MAP_STYLE = {
     cartTrash: '#2c2d2f',
     cartRecycle: '#2f5fa8',
     cars: ['#c9ccd0', '#2f3236', '#f2f2f0', '#7f1d1d', '#2e4a73', '#8a8f94', '#4b5a3c', '#b5a48a'],
-    carGlass: '#2b3640',
+    carGlass: '#3f5262',
     tire: '#202022',
     marks: { yellow2: '#e3bf45', white: '#e9e8e2', stop: '#e9e8e2' },
+
+    // Fences: weathered cedar privacy fences, white pickets, galvanized chain link, black iron.
+    fenceWood: ['#9a7b5c', '#8a6c4f', '#a88a68'],
+    fenceCedar: '#a0714a',
+    fencePicket: '#f1efe8',
+    fenceChain: '#a9aeb0',
+    fenceIron: '#26282a',
+
+    // Home Slice Pizza (501 E 53rd), from press photos: aged orange-brown brick, a black sign band
+    // with gold and silver sequined letters, blue/white striped and red awnings, white tile and
+    // multicolor brick wainscots, black storefront frames with brass push bars.
+    homeSlice: {
+      brick: '#eab58c', // the storefront faces north (always in shade): light, so it reads like the photo
+      brickDark: '#c98f66',
+      mortar: '#b9a08a',
+      multiBrick: ['#3a3940', '#8c2f2b', '#41506e', '#b4875a', '#5b2a2a', '#2c2c30'],
+      tile: '#eeeeea',
+      signBand: '#1b1c1f',
+      gold: '#f0d690',
+      silver: '#f1f2f4',
+      frame: '#17181a',
+      brass: '#c7a34d',
+      awningRed: '#b01f28',
+      awningBlue: '#20304f',
+      awningWhite: '#f2f1ec',
+      roof: '#cfccc5',
+      hvac: '#a9adb0',
+      scaffold: '#2f4a3a', // NYC sidewalk-shed green
+      metalRoof: '#b7c3c8',
+      soffit: '#b9b29c', // plywood under the shed deck
+      sail: '#c9ad6e',
+      bar: ['#d9862c', '#e9b23a', '#7a4a2a', '#efe1c0'], // '70s t-shirt stripes on the patio bar tiles
+      tableRed: '#b3262b',
+      bench: '#7a5a3e',
+      turf: '#5aa83c',
+      tunnel: '#c9c4b8',
+    },
   },
 };
 

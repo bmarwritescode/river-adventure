@@ -2,7 +2,7 @@
 import type { MapStyle } from '../../config/mapStyle';
 import { Heightmap, type HeightmapMeta } from '../terrain';
 import { buildBuildings, buildGround, buildSurfaces, paintTile, type Footprints, type MeshArrays } from './buildTile';
-import { buildDressing, mergeFootprints, mergeMeshes } from './dress';
+import { buildDressing, mergeFootprints, mergeMeshes, type DressedTile } from './dress';
 import { MeshBuilder } from './dress/MeshBuilder';
 import type { SignMeshResult, SignPainter } from './dress/signs';
 import { MAP_DATA_VERSION, type TileData, type TileStreet } from './types';
@@ -28,7 +28,7 @@ export interface BuiltTile {
   decals: MeshArrays | null;
   /** Textured sign quads + their atlas (dressed area only). */
   signs: SignMeshResult | null;
-  dressed: { buildings: number; props: number; triangles: number } | null;
+  dressed: DressedTile['counts'] | null;
   /** Ground texture as raw RGBA pixels (textureSize x textureSize, row 0 = north edge). */
   pixels: Uint8Array;
   textureSize: number;

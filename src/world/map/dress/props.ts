@@ -169,44 +169,82 @@ function cart(ctx: DressContext, color: RGB): void {
   wheel(mb, 0.27, 0.11, 0.3, 0.11, 0.07, tire, tire);
 }
 
+/**
+ * Parked car (sedan / SUV / pickup by variant % 3), ~200 triangles. Body = a side profile extruded
+ * across the width (hood, cabin base, trunk); greenhouse = a narrower frustum (tumblehome) with glass
+ * sides and a painted roof and pillars; dark tires with small silver hubs. Front = local −Z.
+ */
 function car(ctx: DressContext, variant: number): void {
   const mb = ctx.mb, S = ctx.style;
   const paint = rgb(S.cars[variant % S.cars.length]!);
-  const glass = rgb(S.carGlass), tire = rgb(S.tire), hub = rgb('#9a9ea2');
+  const glass = rgb(S.carGlass), glassTop = shade(glass, 1.45), tire = rgb(S.tire), hub = rgb('#b9bdc0');
+  const trimC = shade(paint, 0.55), bumper = rgb('#3a3b3d');
   const type = variant % 3; // 0 sedan, 1 SUV, 2 pickup
-  const W = 1.8;
-  const L = type === 0 ? 4.6 : type === 1 ? 4.8 : 5.4;
-  const bodyTop = type === 0 ? 0.95 : 1.1;
-  const roofY = type === 0 ? 1.45 : 1.8;
-  const hl = L / 2;
-  mb.box(0, 0.32, 0, W, bodyTop, L, paint, 0, { aoBottom: 0.3 });
-  // Cabin: a frustum with glass sides and a painted roof. Front = local −Z.
-  const cf = type === 2 ? -hl + 1.4 : -hl + (type === 0 ? 1.45 : 1.3); // windshield bottom
-  const cb = type === 2 ? -hl + 3.0 : hl - (type === 0 ? 0.9 : 0.35);  // rear window bottom
-  const rf = cf + (type === 0 ? 0.75 : 0.45), rb = cb - (type === 0 ? 0.55 : 0.12);
-  const iw = W / 2 - 0.08, rw = W / 2 - 0.2;
-  const P = (x: number, y: number, z: number): [number, number, number] => [x, y, z];
-  mb.quad(P(-iw, bodyTop, cf), P(iw, bodyTop, cf), P(rw, roofY, rf), P(-rw, roofY, rf), glass); // windshield (faces −Z)
-  mb.quad(P(iw, bodyTop, cb), P(-iw, bodyTop, cb), P(-rw, roofY, rb), P(rw, roofY, rb), glass); // rear window
-  mb.quad(P(iw, bodyTop, cf), P(iw, bodyTop, cb), P(rw, roofY, rb), P(rw, roofY, rf), glass); // right side
-  mb.quad(P(-iw, bodyTop, cb), P(-iw, bodyTop, cf), P(-rw, roofY, rf), P(-rw, roofY, rb), glass); // left side
-  mb.quad(P(-rw, roofY, rf), P(rw, roofY, rf), P(rw, roofY, rb), P(-rw, roofY, rb), paint); // roof
+  const W = type === 1 ? 1.9 : 1.82;
+  const L = type === 0 ? 4.7 : type === 1 ? 4.8 : 5.5;
+  const hl = L / 2, hw = W / 2;
+  const sill = 0.34;
+  const belt = type === 0 ? 0.9 : 1.08;
+  const roofY = type === 0 ? 1.44 : type === 1 ? 1.78 : 1.8;
+  // Side profile (z, y), front (−z) to back, convex: bumper, hood, cowl, deck/bed rail, tail.
+  const cf = type === 2 ? -hl + 1.55 : -hl + (type === 0 ? 1.5 : 1.25); // windshield base
+  const cb = type === 2 ? -hl + 3.05 : hl - (type === 0 ? 1.0 : 0.3);   // rear glass base
+  const prof: [number, number][] = [
+    [-hl, sill], [-hl, belt - 0.26], [-hl + 0.22, belt - 0.08], [cf, belt], [type === 2 ? hl - 0.05 : cb, belt],
+    [hl - (type === 0 ? 0.12 : 0.05), belt - 0.06], [hl, belt - 0.25], [hl, sill],
+  ];
+  const n = prof.length;
+  const P = (x: number, [z, y]: [number, number]): [number, number, number] => [x, y, z];
+  // Sides
+  mb.face(prof.map((q) => P(hw, q)), paint, [1, 0, 0]);
+  mb.face(prof.map((q) => P(-hw, q)), paint, [-1, 0, 0]);
+  // Skin around the profile (front, hood, roof of the body, tail, underside skipped)
+  for (let i = 0; i < n - 1; i++) {
+    const a = prof[i]!, b = prof[i + 1]!;
+    // The profile runs clockwise in (z, y): an edge's outward normal is (y: dz, z: −dy).
+    const dz = b[0] - a[0], dy = b[1] - a[1];
+    const c = dz > Math.abs(dy) ? shade(paint, 1.05) : paint;
+    mb.face([P(-hw, a), P(hw, a), P(hw, b), P(-hw, b)], c, [0, dz, -dy]);
+  }
+  // Rocker / wheel-arch shadow band along the bottom of the sides
+  for (const sx of [1, -1]) {
+    mb.face([[sx * (hw + 0.005), sill, -hl + 0.1], [sx * (hw + 0.005), sill, hl - 0.1], [sx * (hw + 0.005), sill + 0.1, hl - 0.1], [sx * (hw + 0.005), sill + 0.1, -hl + 0.1]], trimC, [sx, 0, 0]);
+  }
+  // Bumpers
+  mb.box(0, sill - 0.02, -hl - 0.04, W - 0.06, sill + 0.2, 0.1, bumper);
+  mb.box(0, sill - 0.02, hl + 0.04, W - 0.06, sill + 0.2, 0.1, bumper);
+  // Greenhouse: frustum from the belt to the roof, inset for tumblehome.
+  const rf = cf + (type === 0 ? 0.8 : 0.5), rb = type === 2 ? cb - 0.08 : cb - (type === 0 ? 0.6 : 0.12);
+  const iw = hw - 0.06, rw = hw - (type === 1 ? 0.14 : 0.22);
+  const V = (x: number, y: number, z: number): [number, number, number] => [x, y, z];
+  mb.face([V(-iw, belt, cf), V(iw, belt, cf), V(rw, roofY, rf), V(-rw, roofY, rf)], glass, [0, 0.6, -1], [glass, glass, glassTop, glassTop]); // windshield
+  mb.face([V(iw, belt, cb), V(-iw, belt, cb), V(-rw, roofY, rb), V(rw, roofY, rb)], glass, [0, 0.6, 1], [glass, glass, glassTop, glassTop]); // rear glass
+  for (const sx of [1, -1]) {
+    const x0 = sx * iw, x1 = sx * rw;
+    mb.face([V(x0, belt, cf), V(x0, belt, cb), V(x1, roofY, rb), V(x1, roofY, rf)], glass, [sx, 0.25, 0], [glass, glass, glassTop, glassTop]);
+    // A / B / C pillars in body color (thin strips over the glass)
+    const bz = (cf + cb) / 2 + 0.1, bzr = (rf + rb) / 2 + 0.1;
+    mb.face([V(x0 * 1.002, belt, bz - 0.06), V(x0 * 1.002, belt, bz + 0.06), V(x1 * 1.002, roofY, bzr + 0.06), V(x1 * 1.002, roofY, bzr - 0.06)], trimC, [sx, 0.25, 0]);
+  }
+  mb.face([V(-rw, roofY, rf), V(rw, roofY, rf), V(rw, roofY, rb), V(-rw, roofY, rb)], shade(paint, 1.06), [0, 1, 0]); // roof
   if (type === 2) {
-    // Pickup bed: low walls around an open box.
-    const z0 = cb + 0.1;
-    mb.box(0, bodyTop, (z0 + hl) / 2, W, bodyTop + 0.08, hl - z0, shade(paint, 0.7));
-    for (const x of [-W / 2 + 0.05, W / 2 - 0.05]) mb.box(x, bodyTop, (z0 + hl) / 2, 0.1, bodyTop + 0.35, hl - z0, paint);
-    mb.box(0, bodyTop, hl - 0.05, W, bodyTop + 0.35, 0.1, paint);
+    // Pickup bed: open box behind the cab (inner floor + inner walls darker).
+    const z0 = cb + 0.12;
+    mb.face([V(-hw + 0.08, belt - 0.4, z0), V(hw - 0.08, belt - 0.4, z0), V(hw - 0.08, belt - 0.4, hl - 0.1), V(-hw + 0.08, belt - 0.4, hl - 0.1)], shade(paint, 0.45), [0, 1, 0]);
+    mb.box(0, belt - 0.02, cb + 0.04, W - 0.1, belt + 0.02, 0.08, shade(paint, 0.8)); // cab back lip
   }
   // Lights
-  for (const x of [-W / 2 + 0.3, W / 2 - 0.3]) {
-    mb.box(x, bodyTop - 0.28, -hl - 0.01, 0.38, bodyTop - 0.12, 0.04, rgb('#f2f0e6'));
-    mb.box(x, bodyTop - 0.28, hl + 0.01, 0.34, bodyTop - 0.14, 0.04, rgb('#a3201d'));
+  for (const x of [-hw + 0.3, hw - 0.3]) {
+    mb.box(x, belt - 0.24, -hl - 0.01, 0.36, belt - 0.1, 0.04, rgb('#f2f0e6'));
+    mb.box(x, belt - 0.26, hl + 0.01, 0.32, belt - 0.12, 0.04, rgb('#a3201d'));
   }
-  const wz = hl - (type === 2 ? 1.0 : 0.85);
-  for (const x of [-W / 2 + 0.1, W / 2 - 0.1]) {
-    wheel(mb, x, 0.34, -wz, 0.34, 0.24, tire, hub);
-    wheel(mb, x, 0.34, wz, 0.34, 0.24, tire, hub);
+  // Wheels: dark tires, small silver hubs on the outside.
+  const wz = hl - (type === 2 ? 1.05 : 0.85);
+  for (const x of [-hw + 0.12, hw - 0.12]) {
+    for (const z of [-wz, wz]) {
+      wheel(mb, x, 0.34, z, 0.34, 0.24, tire, tire);
+      wheel(mb, x + Math.sign(x) * 0.125, 0.34, z, 0.15, 0.01, hub, hub);
+    }
   }
 }
 

@@ -40,6 +40,8 @@ export const TUNING = {
     boundaryWallThickness: 3,
     /** How long the nearest-street lookup is cached, seconds. */
     streetLookupInterval: 0.2,
+    /** Self-illumination of sign textures (0 = lit like everything else), applied when a tile loads. */
+    signGlow: 0.3,
   },
   triggers: {
     /** Extra distance past a zone's edge before "exit" fires (hysteresis), meters. */
@@ -110,7 +112,7 @@ export const TUNING = {
     // fill, warm green bounce from the lawns. Colors are sRGB hex (lil-gui color pickers).
     sunIntensity: 2.7,
     sunColor: '#fff0d8',
-    hemiIntensity: 1.25,
+    hemiIntensity: 1.8,
     hemiSkyColor: '#d4e3f2',
     hemiGroundColor: '#8a8160',
     /** Gradient sky dome; fog fades to the horizon color. */

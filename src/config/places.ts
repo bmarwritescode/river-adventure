@@ -22,6 +22,8 @@ export const PLACES: Place[] = [
   { id: 'origin', label: 'Origin: 45th & Duval', x: 0, z: 0, heading: -0.5 }, // facing north up Duval
   // Step 5 art test block (fully dressed): west sidewalk of Duval just north of 51st, facing north.
   { id: 'art-block', label: 'Art block: Duval, 51st → 53rd', x: 445.6, z: -829.9, heading: -0.5 },
+  // Hero location: Home Slice Pizza's parking lot (SE corner of Duval & 53rd), facing the storefront.
+  { id: 'home-slice', label: 'Home Slice Pizza (Duval & 53rd)', x: 586.3, z: -1017.4, heading: 2.64 },
   // Boundary corners (just inside the playable edge)
   { id: 'nw-corner', label: 'NW corner: Guadalupe & Koenig/56th', x: 55.6, z: -1812.0 },
   { id: 'ne-corner', label: 'NE corner: 56th & Airport', x: 1070.9, z: -1235.0 },

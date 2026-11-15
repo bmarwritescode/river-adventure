@@ -263,7 +263,7 @@ export function paintTile(ctx: Paint2D, data: TileData, tileSize: number, size: 
  * never z-fight. Triangles are cut along the ground mesh's grid so they follow the terrain exactly.
  */
 export const SURFACE_LIFT: Partial<Record<AreaKind, number>> = {
-  parking: 0.015, driveway: 0.02, walk: 0.025, sidewalk: 0.03, road: 0.035,
+  parking: 0.015, patio: 0.018, driveway: 0.02, walk: 0.025, sidewalk: 0.03, road: 0.035,
 };
 export function buildSurfaces(mb: MeshBuilder, data: TileData, hm: Heightmap | null, style: MapStyle): void {
   for (const kind of AREA_KINDS) {

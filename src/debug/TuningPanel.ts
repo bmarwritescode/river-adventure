@@ -105,6 +105,7 @@ export class TuningPanel {
     m.add(TUNING.map, 'maxInFlight', 1, 16, 1).name('tile requests in flight');
     m.add(TUNING.map, 'maxFinalizePerFrame', 1, 8, 1).name('tiles finalized / frame');
     m.add(TUNING.map, 'textureSize', [256, 512, 1024, 2048]).name('ground texture px (new tiles)');
+    m.add(TUNING.map, 'signGlow', 0, 1, 0.01).name('sign glow (new tiles)');
     m.add(TUNING.lighting, 'shadowRadius', 10, 200, 1).name('shadow range (m)').onFinishChange(hooks.shadowsChanged);
     m.add(TUNING.lighting, 'shadowMapSize', [512, 1024, 2048, 4096]).name('shadow map px').onFinishChange(hooks.shadowsChanged);
 

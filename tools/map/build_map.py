@@ -23,6 +23,7 @@ import time
 from collections import Counter
 
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
+from shapely.ops import unary_union
 from shapely.prepared import prep
 
 import config
@@ -163,7 +164,10 @@ def main() -> None:
     dressing = dress(osm, layers, proj, playable)
     for kind, polys in dressing.ground.items():
         parts = [p for p in polys if not p.is_empty]
-        layers.areas[kind] = MultiPolygon([q for p in parts for q in polygons_of(p)]) if parts else MultiPolygon()
+        if kind in layers.areas and not layers.areas[kind].is_empty:
+            parts.append(layers.areas[kind])  # e.g. OSM parking lots + the dressing's lots
+        merged = unary_union(parts) if parts else MultiPolygon()
+        layers.areas[kind] = MultiPolygon([q for q in polygons_of(merged) if q.area > 0.05]) if parts else MultiPolygon()
     print(f"[dress] {time.time() - t2:.1f} s")
     for n in dressing.notes:
         print(f"  - {n}")

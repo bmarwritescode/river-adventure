@@ -2,6 +2,7 @@ import earcut from 'earcut';
 import type { DressStyle } from '../../../config/mapStyle';
 import type { Heightmap } from '../../terrain';
 import type { TileBuilding } from '../types';
+import { buildLandmarkBuilding } from './landmarks';
 import { jitter, MeshBuilder, mix, pick, rgb, rng, shade, type RGB } from './MeshBuilder';
 
 /**
@@ -27,7 +28,21 @@ export interface LabelRequest {
   rot: number;
   width: number;
   height: number;
-  background: string;
+  /** Panel color; null = no panel (cut-out letters, alpha-tested). */
+  background: string | null;
+  /** Letter color (default off-white). */
+  foreground?: string;
+  /** 'sans' (default), 'block' (heavy), 'script' (painted window script). */
+  font?: 'sans' | 'block' | 'script';
+  outline?: string;
+  /** Extra letter spacing, as a fraction of the font size. */
+  spacing?: number;
+  /** Glittery sequin fill (Home Slice's sign). */
+  sequins?: boolean;
+  twoSided?: boolean;
+  border?: boolean;
+  /** Atlas rows (64 px each): more = sharper big lettering. */
+  rows?: number;
 }
 
 export interface DressContext {
@@ -54,7 +69,7 @@ const FASCIA = 0.16;
 const WALL_MIN = 2.6; // floor to eave
 const PIER_HEIGHT = 0.65;
 
-function signedArea(ring: number[]): number {
+export function signedArea(ring: number[]): number {
   let a = 0;
   for (let k = 0, m = ring.length / 2; k < m; k++) {
     const k2 = (k + 1) % m;
@@ -210,7 +225,7 @@ function rectRoof(ctx: DressContext, fr: Frame, r: Rect, eave: number, tanP: num
 }
 
 /** Flat window/door/sign panel on a wall: rectangle at distance `off` in front of the wall plane. */
-function wallPanel(mb: MeshBuilder, ax: number, az: number, tx: number, tz: number, nx: number, nz: number,
+export function wallPanel(mb: MeshBuilder, ax: number, az: number, tx: number, tz: number, nx: number, nz: number,
   t0: number, t1: number, y0: number, y1: number, off: number, color: RGB, colorTop?: RGB): void {
   const p = (t: number, y: number): [number, number, number] => [ax + tx * t + nx * off, y, az + tz * t + nz * off];
   poly(mb, [p(t0, y0), p(t1, y0), p(t1, y1), p(t0, y1)], color, [nx, 0, nz], colorTop ? [color, color, colorTop, colorTop] : undefined);
@@ -220,12 +235,19 @@ export function buildDressedBuilding(ctx: DressContext, b: TileBuilding): void {
   const d = b.d!;
   const outer = b.r[0];
   if (!outer || outer.length < 6) return;
+  if (d.lm) {
+    buildLandmarkBuilding(ctx, b, d.lm);
+    return;
+  }
   const mb = ctx.mb, S = ctx.style, hm = ctx.hm;
   const r = rng(d.seed * 2654435761);
   const kind = d.k;
 
   // Frame: f = toward the street (or dominant axis), s = across.
-  const f: P2 = d.f ? [d.f[0], d.f[1]] : dominantAxis(outer);
+  // Normalize: d.f is rounded in the tile data, and |f| ≠ 1 times world coordinates (~1000 m) would
+  // shift the roof rectangles off the walls by most of a meter.
+  const fl = d.f ? Math.hypot(d.f[0], d.f[1]) || 1 : 1;
+  const f: P2 = d.f ? [d.f[0] / fl, d.f[1] / fl] : dominantAxis(outer);
   const fr: Frame = { f, s: [-f[1], f[0]] };
   const local: number[] = [];
   for (let k = 0; k < outer.length; k += 2) {

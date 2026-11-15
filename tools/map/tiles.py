@@ -9,7 +9,7 @@ Assignment rules:
   areas      clipped to the tile square (merged per kind, no overlap between tiles)
   streets    clipped to the tile square (names kept)
   trees      by position
-  dressing   props / signs by position, wires by midpoint, curbs + markings clipped like streets
+  dressing   props / signs by position, wires by midpoint, curbs + markings + fences clipped like streets
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from dress import Dressing, building_records_extra
 from layers import Layers, polygons_of
 
 TILE_SIZE = 250.0
-DATA_VERSION = 2
+DATA_VERSION = 3
 
 
 def _flat(coords) -> list[float]:
@@ -129,6 +129,11 @@ def write_tiles(layers: Layers, boundary: Polygon, area: Polygon, out_dir: Path,
                     for part in _lines(ln.intersection(sq)):
                         if part.length >= 0.3:
                             tile.setdefault("marks", []).append({"t": kind, "p": _flat(part.coords)})
+            for kind, h, ln in D.fences:
+                if ln.intersects(sq):
+                    for part in _lines(ln.intersection(sq)):
+                        if part.length >= 0.3:
+                            tile.setdefault("fences", []).append({"t": kind, "h": round(h, 2), "p": _flat(part.coords)})
             for ln in D.curbs:
                 if ln.intersects(sq):
                     for part in _lines(ln.intersection(sq)):

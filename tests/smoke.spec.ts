@@ -142,6 +142,33 @@ test('running around town never ends up inside a building', async ({ page }) => 
   expect(errors, errors.join('\n')).toEqual([]);
 });
 
+test('Home Slice (hero location) builds, and the dog can cross its lot to the patio', async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
+  const errors = collectErrors(page);
+  await page.goto('/?at=home-slice');
+  await gameReady(page);
+  const m = await page.evaluate(() => window.__game!.map);
+  expect(m.errors).toBe(0);
+  expect(m.landmarks).toBe(1);
+  expect((await page.evaluate(() => window.__game!.dog)).insideObstacle).toBe(false);
+  let stuckInside = false;
+  const check = async () => {
+    if ((await page.evaluate(() => window.__game!.dog.insideObstacle))) stuckInside = true;
+  };
+  // Toward the storefront (between the parked cars), then west along the walk to the patio.
+  const p0 = (await page.evaluate(() => window.__game!.dog)).position;
+  await hold(page, ['KeyW'], 1500, check);
+  await page.keyboard.press('KeyM'); // compass-relative controls
+  await hold(page, ['ShiftLeft', 'KeyA'], 2500, check);
+  await hold(page, ['ShiftLeft', 'KeyS'], 1500, check);
+  const p1 = (await page.evaluate(() => window.__game!.dog)).position;
+  const moved = Math.hypot(p1.x - p0.x, p1.z - p0.z);
+  console.log(`[${testInfo.project.name}] Home Slice: moved ${moved.toFixed(1)} m, ${m.dressedProps} props`);
+  expect(moved).toBeGreaterThan(5);
+  expect(stuckInside).toBe(false);
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
 test('art block (Duval 51st → 53rd) is dressed, renders, and the dog can run through it', async ({ page }, testInfo) => {
   test.setTimeout(90_000);
   const errors = collectErrors(page);

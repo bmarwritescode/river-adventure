@@ -4,6 +4,7 @@ import { drapeTriangle, type Footprints, type MeshArrays } from '../buildTile';
 import type { TileData } from '../types';
 import { buildDressedBuilding, type DressContext } from './houses';
 import { MeshBuilder, rgb } from './MeshBuilder';
+import { buildFences } from './fences';
 import { buildCurbs, buildProps, buildWires } from './props';
 import { buildSignMesh, streetSignLabels, type SignMeshResult, type SignPainter } from './signs';
 
@@ -15,7 +16,7 @@ export interface DressedTile {
   signs: SignMeshResult | null;
   /** Collision for dressed buildings and props. */
   footprints: Footprints;
-  counts: { buildings: number; props: number; triangles: number };
+  counts: { buildings: number; props: number; landmarks: number; triangles: number };
 }
 
 const MARK_WIDTH = { yellow2: 0.1, white: 0.15, stop: 0.45 } as const;
@@ -24,7 +25,7 @@ const MARK_WIDTH = { yellow2: 0.1, white: 0.15, stop: 0.45 } as const;
 export function buildDressing(data: TileData, hm: Heightmap | null, style: MapStyle,
   newCanvas: (w: number, h: number) => SignPainter | null): DressedTile | null {
   const dressedBuildings = data.buildings.filter((b) => b.d);
-  if (!dressedBuildings.length && !data.props && !data.signs && !data.marks && !data.curbs) return null;
+  if (!dressedBuildings.length && !data.props && !data.signs && !data.marks && !data.curbs && !data.fences) return null;
 
   const mb = new MeshBuilder();
   const ctx: DressContext = { mb, hm, style: style.dress, sink: style.buildingSink, obstacles: [], labels: [] };
@@ -53,7 +54,7 @@ export function buildDressing(data: TileData, hm: Heightmap | null, style: MapSt
     const base = gMin - style.buildingSink;
     addFootprint(outer, base, gSum / m + b.h - base);
   }
-  const props = data.props ? buildProps(ctx, data.props, data.signs) : 0;
+  const props = (data.props ? buildProps(ctx, data.props, data.signs) : 0) + buildFences(ctx, data.fences);
   // STOP text on stop signs (same atlas as street names).
   const stops = data.props?.stop ?? [];
   for (let k = 0; k + 4 < stops.length; k += 5) {
@@ -82,7 +83,10 @@ export function buildDressing(data: TileData, hm: Heightmap | null, style: MapSt
       coords: new Float32Array(fpCoords), offsets: new Uint32Array(fpOffsets),
       heights: new Float32Array(fpHeights), bases: new Float32Array(fpBases),
     },
-    counts: { buildings: dressedBuildings.length, props, triangles: structures.indices.length / 3 },
+    counts: {
+      buildings: dressedBuildings.length, props, landmarks: dressedBuildings.filter((b) => b.d!.lm).length,
+      triangles: structures.indices.length / 3,
+    },
   };
 }
 

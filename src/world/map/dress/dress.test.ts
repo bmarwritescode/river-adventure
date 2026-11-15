@@ -6,12 +6,13 @@ import type { TileData } from '../types';
 import { decompose, dominantAxis } from './houses';
 import { buildDressing } from './index';
 import { MeshBuilder, rgb } from './MeshBuilder';
-import type { SignPainter } from './signs';
+import { buildSignMesh, type SignPainter } from './signs';
 
 /** Fake 2D canvas: records nothing, returns blank pixels (no DOM in unit tests). */
 const fakeCanvas = (w: number, h: number): SignPainter => ({
-  fillStyle: '', strokeStyle: '', lineWidth: 1, font: '', textAlign: 'center', textBaseline: 'middle',
-  fillRect() {}, strokeRect() {}, fillText() {},
+  fillStyle: '', strokeStyle: '', lineWidth: 1, lineJoin: 'miter', font: '', textAlign: 'center', textBaseline: 'middle',
+  globalCompositeOperation: 'source-over',
+  fillRect() {}, strokeRect() {}, fillText() {}, strokeText() {},
   measureText: (t: string) => ({ width: t.length * 20 }),
   getImageData: () => ({ data: new Uint8ClampedArray(w * h * 4) }),
 });
@@ -63,7 +64,7 @@ describe('MeshBuilder', () => {
 
 describe('buildDressing', () => {
   const tile: TileData = {
-    v: 2, i: 0, j: 0, streets: [], trees: [], areas: {},
+    v: 3, i: 0, j: 0, streets: [], trees: [], areas: {},
     buildings: [{
       r: [rect(10, 10, 20, 18)], h: 5.5, id: 1,
       d: { k: 'house', seed: 42, roof: 'gable', f: [0, 1], door: [15, 18], porch: [4, 2], pier: 1 },
@@ -102,7 +103,7 @@ describe('buildDressing', () => {
 describe('buildSurfaces', () => {
   const surf = (hm: Heightmap | null) => {
     const mb = new MeshBuilder();
-    buildSurfaces(mb, { v: 2, i: 0, j: 0, buildings: [], streets: [], trees: [], areas: { road: [[rect(0, 0, 40, 8)]] } }, hm, MAP_STYLE);
+    buildSurfaces(mb, { v: 3, i: 0, j: 0, buildings: [], streets: [], trees: [], areas: { road: [[rect(0, 0, 40, 8)]] } }, hm, MAP_STYLE);
     return mb.build();
   };
 
@@ -126,5 +127,103 @@ describe('buildSurfaces', () => {
       const cy = (p[t + 1]! + p[t + 4]! + p[t + 7]!) / 3;
       expect(Math.abs(cy - (hm.sample(cx, cz) + 0.035))).toBeLessThan(1e-4); // exactly on the ground triangles
     }
+  });
+});
+
+describe('house frame far from the origin', () => {
+  it('keeps the roof on the walls even with a rounded (non-unit) front direction', () => {
+    // A 10 x 8 house ~1.1 km from the origin; d.f rounded to 3 decimals like the tile data.
+    const c = Math.cos(0.5), s = Math.sin(0.5);
+    const cx = 580, cz = -990;
+    const ring = [[-5, -4], [5, -4], [5, 4], [-5, 4]].flatMap(([x, z]) => [cx + x! * c - z! * s, cz + x! * s + z! * c]);
+    const tile: TileData = {
+      v: 3, i: 0, j: 0, streets: [], trees: [], areas: {},
+      buildings: [{ r: [ring], h: 6, id: 9, d: { k: 'house', seed: 3, roof: 'hip', f: [Number((-s).toFixed(3)), Number(c.toFixed(3))] } }],
+    };
+    const d = buildDressing(tile, null, MAP_STYLE, fakeCanvas)!;
+    const p = d.structures.positions;
+    let maxR = 0;
+    for (let k = 0; k < p.length; k += 3) {
+      if (p[k + 1]! < 3) continue; // roof only
+      maxR = Math.max(maxR, Math.hypot(p[k]! - cx, p[k + 2]! - cz));
+    }
+    // Corner distance 6.4 m + overhang/fascia ~0.65 m; a shifted roof would reach well past that.
+    expect(maxR).toBeLessThan(Math.hypot(5, 4) + 0.75);
+  });
+});
+
+describe('fences', () => {
+  const base: TileData = { v: 3, i: 0, j: 0, buildings: [], streets: [], trees: [], areas: {} };
+  for (const t of ['wood', 'cedar', 'picket', 'chain', 'iron'] as const) {
+    it(`${t}: finite geometry, one dog-only obstacle per segment, low-poly`, () => {
+      const d = buildDressing({ ...base, fences: [{ t, h: t === 'wood' ? 1.85 : 1.1, p: [0, 0, 10, 0, 10, 6] }] }, null, MAP_STYLE, fakeCanvas)!;
+      for (const v of d.structures.positions) expect(Number.isFinite(v)).toBe(true);
+      expect(d.footprints.offsets.length - 1).toBe(2);
+      for (const h of d.footprints.heights) expect(h).toBe(0); // blocks the dog, not the camera
+      expect(d.counts.triangles / 16).toBeLessThan(60); // triangles per meter of fence
+    });
+  }
+});
+
+describe('Home Slice landmark', () => {
+  // The real record from the tile data (OSM way 379191561 + the pipeline's site frame).
+  const hs: TileData = {
+    v: 3, i: 2, j: -4, streets: [], trees: [], areas: {},
+    buildings: [{
+      r: [[593.19, -1000.97, 583.48, -983.24, 585.22, -982.26, 581.36, -975.34, 579.71, -976.21, 576.51, -970.3, 558.22, -980.4,
+        561.8, -986.87, 562.38, -986.55, 575.67, -1010.64]],
+      h: 4.15, id: 379191561,
+      d: { k: 'shop', seed: 91561, f: [0.483, -0.876], door: [586.88, -1004.45], roof: 'flat',
+        lm: { id: 'homeslice', o: [575.67, -1010.64], u: [0.8755, 0.4832], pw: 12.13 } },
+    }],
+  };
+
+  it('builds the building, patio fixtures, signs and collision within budget', () => {
+    const d = buildDressing(hs, null, MAP_STYLE, fakeCanvas)!;
+    for (const v of d.structures.positions) expect(Number.isFinite(v)).toBe(true);
+    expect(d.counts.landmarks).toBe(1);
+    // Sign lettering: HOME / SLICE / PIZZA (two-sided) + RESTAURANT BAR + windows + awning text.
+    expect(d.signs!.mesh.indices.length / 6).toBeGreaterThanOrEqual(15);
+    // Building + shed/sail posts + bar + tables + mounds + tunnel walls.
+    expect(d.footprints.offsets.length - 1).toBeGreaterThan(20);
+    expect(d.counts.triangles).toBeLessThan(16000);
+  });
+
+  it('puts the storefront on the real wall (not floating in front of it)', () => {
+    const d = buildDressing(hs, null, MAP_STYLE, fakeCanvas)!;
+    // Every sign quad sits within 0.35 m of the storefront plane or above the roof (letters on the band).
+    const [ox, oz] = [575.67, -1010.64], n = [0.4832, -0.8755];
+    const p = d.signs!.mesh.positions;
+    for (let k = 0; k < p.length; k += 3) {
+      const b = (p[k]! - ox) * n[0]! + (p[k + 2]! - oz) * n[1]!;
+      expect(Math.abs(b)).toBeLessThan(1.15); // awning valance text is ~1.05 m out
+    }
+  });
+});
+
+describe('sign atlas', () => {
+  it('shelf-packs labels of different sizes without overlap', () => {
+    const lab = (text: string, w: number, h: number, rows?: number) => ({ text, x: 0, y: 0, z: 0, rot: 0, width: w, height: h, background: null, rows });
+    const labels = [lab('HOME', 2.3, 1, 2), lab('SLICE', 2.9, 1, 2), lab('PIZZA', 3.3, 1, 2), lab('BAR', 1, 0.3, 0.75),
+      lab('A long awning line of text', 6, 0.3, 0.75), lab('501', 0.5, 0.2, 0.5)];
+    const r = buildSignMesh(labels, [], fakeCanvas)!;
+    const uv = r.mesh.uvs;
+    const rects: [number, number, number, number][] = [];
+    for (let q = 0; q < uv.length; q += 8) {
+      const us = [uv[q]!, uv[q + 2]!, uv[q + 4]!, uv[q + 6]!], vs = [uv[q + 1]!, uv[q + 3]!, uv[q + 5]!, uv[q + 7]!];
+      rects.push([Math.min(...us), Math.max(...us), Math.min(...vs), Math.max(...vs)]);
+    }
+    for (const [u0, u1, v0, v1] of rects) {
+      expect(u0).toBeGreaterThanOrEqual(0); expect(u1).toBeLessThanOrEqual(1);
+      expect(v0).toBeGreaterThanOrEqual(0); expect(v1).toBeLessThanOrEqual(1);
+    }
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i]!, b = rects[j]!;
+        const overlap = a[0] < b[1] && b[0] < a[1] && a[2] < b[3] && b[2] < a[3];
+        expect(overlap).toBe(false);
+      }
+    }
+    expect(r.height).toBeLessThanOrEqual(128 * 2 + 48 + 32 + 3 * 2 + 4); // 4 shelves, nothing wasted
   });
 });

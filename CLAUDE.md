@@ -110,7 +110,7 @@ The owner is an experienced programmer but new to game dev. Explain game-dev-spe
 - OSM attribution ("© OpenStreetMap contributors") must stay visible in the game and README.
 - Output: `public/map/index.json` + `tiles/{i}_{j}.json` (250 m world-grid tiles, DATA not meshes) +
   `terrain.bin` (Int16 cm, 5 m grid aligned to tiles). Schema: `src/world/map/types.ts` ↔ `tools/map/tiles.py`;
-  bump `MAP_DATA_VERSION` in both when it changes (now 2). Generated files are committed.
+  bump `MAP_DATA_VERSION` in both when it changes (now 3). Generated files are committed.
 - Game side (`src/world/map/`): `MapWorld` streams tiles around the dog; `tileWorker.ts` builds meshes in a
   Web Worker (pure builders in `buildTile.ts`). Per tile: ONE ground mesh (terrain grid with the surface layers
   painted into a texture; colors in `src/config/mapStyle.ts`) + ONE merged building mesh. Building footprints
@@ -123,6 +123,10 @@ The owner is an experienced programmer but new to game dev. Explain game-dev-spe
   `tools/map/overrides.json` (by OSM id). Palette: `MAP_STYLE.dress`. Houses + props merge into the tile's building
   mesh; one decal mesh (draped hard surfaces + markings + wires, no shadows) and one sign mesh (text atlas) per tile.
   Art rules and budgets: `docs/art-direction.md`. Review art changes with `npm run shots` (fixed views).
+- **Hero locations ("nail a few places"):** `tools/map/landmarks.py` holds hand-made site plans for places
+  locals know (Home Slice; the vet's fence), authored in the building's own frame (`a` along the
+  storefront, `b` out of it) and measured from aerials/photos; `src/world/map/dress/landmarks/` builds the
+  building models. Check placements with `npm run map:site -- --at=<place>` (data over aerial imagery).
 
 ### Code conventions
 
@@ -178,6 +182,10 @@ Lessons so far (keep following them):
   headless software-GL Chromium too.
 - Benchmark routes must stay on open streets (a route that hits a wall measures nothing).
 - Vertex colors are LINEAR in three.js: convert palette sRGB hex (`dress/MeshBuilder.rgb`) or everything looks washed out.
+- Never use a rounded unit vector against world coordinates (~1 km): 3-decimal rounding put house roofs
+  up to 0.8 m off their walls. Normalize on read; anchor frames on real footprint vertices.
+- A tile whose build throws is retried forever and the game never becomes ready: build new dressing in
+  a unit test (`dress.test.ts`) first; `npm run shots` prints browser warnings.
 - Anything draped on the ground must follow the ground mesh's triangles exactly (`drapeTriangle` cuts along the
   5 m grid + diagonals); bilinear sampling + a small lift z-fights. Prefer exact draping over bigger lifts.
 

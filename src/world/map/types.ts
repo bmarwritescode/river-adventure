@@ -38,11 +38,36 @@ export interface BuildingDress {
   pier?: 0 | 1;
   /** Shop-front sign text. */
   sign?: string;
+  /** Hand-made landmark (tools/map/landmarks.py): the game builds this building with its own model. */
+  lm?: LandmarkInfo;
   /** Hand overrides (CSS colors). */
   wall?: string;
   trim?: string;
   roofColor?: string;
   doorColor?: string;
+}
+
+/**
+ * Frame of a hand-made landmark: origin = the storefront's west corner; a = meters along the
+ * storefront (u), b = meters out of the storefront (n = (u[1], -u[0])).
+ */
+export interface LandmarkInfo {
+  id: 'homeslice';
+  /** Frame origin (world x, z). */
+  o: [number, number];
+  /** a axis: unit vector along the storefront. The b axis (out of the storefront) is (u[1], -u[0]). */
+  u: [number, number];
+  /** Patio depth (m) measured from the west wall to the sidewalk. */
+  pw: number;
+}
+
+export type FenceKind = 'picket' | 'chain' | 'iron' | 'cedar' | 'wood';
+
+export interface TileFence {
+  t: FenceKind;
+  /** Height, meters. */
+  h: number;
+  p: FlatCoords;
 }
 
 /** Street-name sign: a post with two blades (a along the main street, b along the cross street). */
@@ -68,7 +93,7 @@ export interface TileStreet {
 }
 
 /** Paint order (later kinds paint over earlier ones). */
-export const AREA_KINDS = ['grass', 'wood', 'pitch', 'bed', 'parking', 'water', 'driveway', 'walk', 'sidewalk', 'road', 'rail'] as const;
+export const AREA_KINDS = ['grass', 'wood', 'pitch', 'turf', 'bed', 'parking', 'patio', 'water', 'driveway', 'walk', 'sidewalk', 'road', 'rail'] as const;
 export type AreaKind = (typeof AREA_KINDS)[number];
 
 export interface TileData {
@@ -88,6 +113,8 @@ export interface TileData {
   marks?: { t: MarkKind; p: FlatCoords }[];
   /** Curb polylines. */
   curbs?: FlatCoords[];
+  /** Fences (yards, the vet's lot, landmark patios). */
+  fences?: TileFence[];
 }
 
 export const PROP_STRIDE = 5;
@@ -124,7 +151,7 @@ export interface MapIndex {
   dressArea?: FlatCoords;
 }
 
-export const MAP_DATA_VERSION = 2;
+export const MAP_DATA_VERSION = 3;
 
 export function tileKey(i: number, j: number): string {
   return `${i}_${j}`;

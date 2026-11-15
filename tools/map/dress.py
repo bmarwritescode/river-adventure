@@ -30,6 +30,7 @@ from shapely.ops import nearest_points, substring, unary_union
 from shapely.prepared import prep
 
 import config
+import landmarks
 from layers import Building, Layers, Street, polygons_of, tagged_polygons
 from osm_parse import OsmData
 
@@ -79,9 +80,23 @@ HYDRANT_SPACING = 120.0
 CAR_CHANCE = 0.55
 CARTS_CHANCE = 0.3
 
-# Lane markings (meters)
-BIKE_LANE_WIDTH = 1.6
+# Lane markings (meters). Cars park along both curbs of the dressed street (aerial imagery), so the
+# white edge line marks the parking lane, not a bike lane.
+PARKING_LANE_WIDTH = 2.2
 STOP_BAR_SETBACK = 2.0
+
+# Street parking: parallel-parked cars along both curbs of the dressed street.
+STREET_PARKING_OCCUPANCY = 0.6
+STREET_PARKING_SLOT = 6.4         # curb length per car (m)
+STREET_PARKING_CORNER = 6.5       # no parking this close to an intersection (past the cross street's edge)
+STREET_PARKING_HYDRANT = 4.6      # 15 ft either side of a hydrant (Texas law)
+
+# Fences (kind -> (weight for random front-yard fences, height m)). "wood" = tall privacy fence.
+FENCE_KINDS = {"picket": (0.3, 0.95), "chain": (0.3, 1.2), "iron": (0.15, 1.1), "cedar": (0.25, 1.2)}
+PRIVACY_FENCE_HEIGHT = 1.85
+FRONT_FENCE_CHANCE = 0.38   # houses with a fenced front yard
+SIDE_FENCE_CHANCE = 0.75    # privacy fence from a house's side to its neighbor (closes the back yard)
+SIDE_FENCE_MAX = 9.0
 
 
 # --- Data ---------------------------------------------------------------------------------------
@@ -90,13 +105,18 @@ STOP_BAR_SETBACK = 2.0
 class Dressing:
     area: Polygon | None = None
     # extra painted ground layers (kind -> list of polygons)
-    ground: dict[str, list[Polygon]] = field(default_factory=lambda: {"driveway": [], "walk": [], "bed": []})
+    ground: dict[str, list[Polygon]] = field(default_factory=lambda: {
+        "driveway": [], "walk": [], "bed": [], "parking": [], "patio": [], "turf": []})
     # props: kind -> list of (x, z, rot, scale, variant); rot = angle of the prop's local +X... see tiles.py
     props: dict[str, list[tuple[float, float, float, float, int]]] = field(default_factory=dict)
     signs: list[dict] = field(default_factory=list)
     wires: list[tuple[float, float, float, float]] = field(default_factory=list)
     marks: list[tuple[str, LineString]] = field(default_factory=list)
     curbs: list[LineString] = field(default_factory=list)
+    # fences: (kind, height, polyline)
+    fences: list[tuple[str, float, LineString]] = field(default_factory=list)
+    # hand-made sites (landmarks.py): random trees / props stay out of these
+    keep_out: list[Polygon] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
     def add(self, kind: str, x: float, z: float, rot: float = 0.0, scale: float = 1.0, variant: int = 0) -> None:
@@ -306,6 +326,10 @@ def dress(osm: OsmData, layers: Layers, proj, playable: Polygon) -> Dressing:
         if kind == "house":
             houses.append((b, info))
 
+    # Hand-made hero locations (landmarks.py): site plans that replace the generic dressing there.
+    landmarks.apply(D, dressed, layers, road, sidewalk, playable)
+    site = unary_union(D.keep_out) if D.keep_out else Polygon()
+
     # Porch footprints (outside the house footprint, in front of the door): obstacles for planting.
     porches = []
     for b, info in houses:
@@ -316,6 +340,7 @@ def dress(osm: OsmData, layers: Layers, proj, playable: Polygon) -> Dressing:
             porches.append(_rect(dx + fx * pd / 2, dz + fz * pd / 2, fx, fz, pd / 2, pw / 2))
     porch_union = unary_union(porches) if porches else Polygon()
     solid = unary_union([all_bldg, porch_union])
+    solid_and_site = unary_union([solid, site])
 
     # 2. Driveways, walks, beds ---------------------------------------------------------------------
     driveways: list[Polygon] = []
@@ -341,7 +366,7 @@ def dress(osm: OsmData, layers: Layers, proj, playable: Polygon) -> Dressing:
                 mid_f = (start_f + e_f) / 2
                 cx, cz = sx * s_c + fx * mid_f, sz * s_c + fz * mid_f
                 r = _rect(cx, cz, fx, fz, (start_f - e_f) / 2, DRIVEWAY_WIDTH / 2)
-                if r.intersects(solid.buffer(0.3)) or any(r.intersects(d) for d in driveways):
+                if r.intersects(solid_and_site.buffer(0.3)) or any(r.intersects(d) for d in driveways):
                     continue
                 if not area_p.contains(Point(cx, cz)):
                     continue
@@ -416,14 +441,20 @@ def dress(osm: OsmData, layers: Layers, proj, playable: Polygon) -> Dressing:
                 if not walkways.intersects(Point(cx, cz).buffer(0.45)):
                     D.add(kind, cx, cz, face(fx, fz), 1.0, 0)
 
+    # 4b. Fences: front-yard fences and side privacy fences between houses ------------------------
+    _place_yard_fences(D, houses, all_bldg, porch_union, drive_union, unary_union(D.ground["walk"] or [Polygon()]),
+                       unary_union([road, sidewalk]), site, playable)
+    fence_zone = unary_union([ln.buffer(0.7) for _, _, ln in D.fences]) if D.fences else Polygon()
+
     # 5. Trees and shrubs ---------------------------------------------------------------------------
-    _place_planting(D, area, playable, houses, solid, hard, porch_union)
+    _place_planting(D, area, playable, houses, solid_and_site, unary_union([hard, fence_zone]), porch_union)
 
     D.notes.append(
         f"{len(dressed)} buildings dressed ({sum(1 for b in dressed if b.dress['k'] == 'house')} houses), "  # type: ignore[attr-defined]
         f"{len(driveways)} driveways, {len(D.ground['walk'])} walks, "
         + ", ".join(f"{k} {len(v)}" for k, v in sorted(D.props.items()))
-        + f", {len(D.signs)} signs, {len(D.wires)} wire spans, {len(D.marks)} markings, {len(D.curbs)} curbs")
+        + f", {len(D.signs)} signs, {len(D.wires)} wire spans, {len(D.marks)} markings, {len(D.curbs)} curbs, "
+        f"{len(D.fences)} fences ({sum(ln.length for _, _, ln in D.fences):.0f} m)")
     return D
 
 
@@ -517,7 +548,7 @@ def _place_street_furniture(D: Dressing, streets: list[Street], area: Polygon, r
             continue
         D.marks.append(("yellow2", seg))
         for side in (1, -1):
-            ln = offset_line(seg, side * (main_w / 2 - BIKE_LANE_WIDTH))
+            ln = offset_line(seg, side * (main_w / 2 - PARKING_LANE_WIDTH))
             if ln is not None:
                 D.marks.append(("white", ln))
 
@@ -596,6 +627,7 @@ def _place_street_furniture(D: Dressing, streets: list[Street], area: Polygon, r
         D.wires.append((x0, z0, x1, z1))
 
     # Hydrants on the other side, in the parkway.
+    hydrants: list[tuple[float, float]] = []
     d = 25.0
     while d < inside.length - 10:
         tx, tz = _tangent_at(inside, d)
@@ -605,9 +637,117 @@ def _place_street_furniture(D: Dressing, streets: list[Street], area: Polygon, r
         if not drives.buffer(1.0).contains(Point(x, z)) and not sidewalk.intersects(Point(x, z).buffer(0.35)) and \
                 not any(abs(d - it["d"]) < it["w"] / 2 + 2 for it in inters.values()):
             D.add("hydrant", x, z, 0.0, 1.0, 0)
+            hydrants.append((x, z))
             d += HYDRANT_SPACING
         else:
             d += 3
+
+    _place_street_parking(D, inside, main_w, road, drives, inters, hydrants)
+
+
+def _place_street_parking(D: Dressing, inside: LineString, main_w: float, road, drives, inters: dict,
+                          hydrants: list[tuple[float, float]]) -> None:
+    """Parallel-parked cars along both curbs of the main street: not at intersections, curb cuts
+    (driveways) or hydrants; facing the direction of traffic on their side."""
+    rng = random.Random(4253)
+    road_p = prep(road.buffer(0.05))
+    no_park = prep(drives.buffer(0.9)) if not drives.is_empty else None
+    count = 0
+    for side in (1, -1):  # +1 = east curb (northbound traffic), -1 = west curb
+        d = 2.0
+        while d < inside.length - 2.0:
+            mid = d + STREET_PARKING_SLOT / 2
+            if any(abs(mid - it["d"]) < it["w"] / 2 + STREET_PARKING_CORNER for it in inters.values()):
+                d += 1.0
+                continue
+            tx, tz = _tangent_at(inside, mid)
+            ex, ez = -tz, tx
+            p = inside.interpolate(mid)
+            off = main_w / 2 - 1.15  # car centre: ~0.25 m off the curb
+            cx, cz = p.x + ex * side * off, p.y + ez * side * off
+            car = _rect(cx, cz, tx, tz, 2.6, 0.95)
+            if not road_p.contains(car) or (no_park is not None and no_park.intersects(car)) or \
+                    any(math.hypot(cx - hx, cz - hz) < STREET_PARKING_HYDRANT for hx, hz in hydrants):
+                d += 1.0
+                continue
+            if rng.random() < STREET_PARKING_OCCUPANCY:
+                j = rng.uniform(-0.12, 0.12)  # not every car hugs the curb the same
+                fx, fz = (tx, tz) if side > 0 else (-tx, -tz)
+                rot = face(fx, fz) + rng.uniform(-0.03, 0.03)
+                D.add("car", cx + ex * side * j, cz + ez * side * j, rot, 1.0, rng.randrange(8))
+                count += 1
+            d += STREET_PARKING_SLOT + rng.uniform(-0.4, 0.8)
+    D.notes.append(f"street parking: {count} cars")
+
+
+def _first_hit(origin: tuple[float, float], direction: tuple[float, float], obstacles, max_d: float) -> float | None:
+    """Distance from origin along direction to the first point inside obstacles (None if no hit)."""
+    ox, oz = origin
+    ray = LineString([(ox, oz), (ox + direction[0] * max_d, oz + direction[1] * max_d)])
+    hit = ray.intersection(obstacles)
+    if hit.is_empty:
+        return None
+    return min(Point(ox, oz).distance(g) for g in getattr(hit, "geoms", [hit]))
+
+
+def _keep_piece(geom, touching=None, min_len: float = 0.8) -> list[LineString]:
+    """Line pieces of geom at least min_len long (optionally only those touching `touching`)."""
+    out = []
+    for g in getattr(geom, "geoms", [geom]):
+        if isinstance(g, LineString) and g.length >= min_len and (touching is None or g.distance(touching) < 0.6):
+            out.append(g)
+    return out
+
+
+def _place_yard_fences(D: Dressing, houses, buildings, porches_all, drives_all, walks_all, street_all, site_all,
+                       playable) -> None:
+    """Front-yard fences (picket / chain-link / iron / cedar, with a gap at the walk and the driveway)
+    and tall wood privacy fences from a house's side to its neighbor (closing off the back yard)."""
+    names = list(FENCE_KINDS)
+    weights = [FENCE_KINDS[n][0] for n in names]
+    inner = playable.buffer(-0.4)
+    for b, info in houses:
+        if "_front" not in info:
+            continue
+        fx, fz, sx, sz, smin, smax, fmin, fmax, fw = info["_front"]
+        rng = random.Random(b.osm_id * 17 + 3)
+        # Work on a local window: buffering the whole map's streets per house is slow.
+        win = b.poly.envelope.buffer(30.0)
+        others = buildings.intersection(win).difference(b.poly.buffer(0.05))
+        street = street_all.intersection(win)
+        drives = drives_all.intersection(win)
+        walks = walks_all.intersection(win)
+        porches = porches_all.intersection(win)
+        site = site_all.intersection(win)
+        W = lambda s, f: (sx * s + fx * f, sz * s + fz * f)  # noqa: E731
+        blocked_front = unary_union([others.buffer(1.0), porches.buffer(0.3), street.buffer(0.35), site.buffer(0.5)])
+
+        # Front yard fence: just behind the sidewalk, across the lot, with returns back to the house.
+        if rng.random() < FRONT_FENCE_CHANCE:
+            door = info.get("door")
+            probe_from = door if door else W((smin + smax) / 2, fmax)
+            hit = _first_hit((probe_from[0], probe_from[1]), (fx, fz), street, 30.0)
+            if hit is not None and hit > 3.0:
+                f_line = probe_from[0] * fx + probe_from[1] * fz + hit - 0.45
+                s0, s1 = smin - rng.uniform(1.5, 3.0), smax + rng.uniform(1.5, 3.0)
+                kind = rng.choices(names, weights)[0]
+                h = FENCE_KINDS[kind][1]
+                path = LineString([W(s0, fmax - 1.0), W(s0, f_line), W(s1, f_line), W(s1, fmax - 1.0)])
+                cut = unary_union([blocked_front, drives.buffer(0.3), walks.buffer(0.05)])
+                pieces = _keep_piece(path.difference(cut).intersection(inner))
+                for pc in pieces:
+                    D.fences.append((kind, h, pc.simplify(0.05)))
+
+        # Side privacy fence on the +s side, a few meters behind the front wall, out to the neighbor.
+        if rng.random() < SIDE_FENCE_CHANCE:
+            f_line = fmax - min(3.0, 0.4 * (fmax - fmin))
+            # From inside the house outward: the piece that starts at this house's wall.
+            path = LineString([W((smin + smax) / 2, f_line), W(smax + SIDE_FENCE_MAX, f_line)])
+            cut = unary_union([b.poly.buffer(0.02), others.buffer(0.3), drives.buffer(0.3), street.buffer(1.0),
+                               site.buffer(0.5)])
+            pieces = _keep_piece(path.difference(cut).intersection(inner), touching=b.poly, min_len=1.5)
+            for pc in pieces:
+                D.fences.append(("wood", PRIVACY_FENCE_HEIGHT, pc))
 
 
 def face(fx: float, fz: float) -> float:
