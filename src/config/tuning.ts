@@ -36,7 +36,6 @@ export const TUNING = {
     /** Fog start / end as a fraction of loadRadius, so the loaded edge is hidden. */
     fogNearFraction: 0.45,
     fogFarFraction: 0.92,
-    skyColor: 0xa9cbe6,
     /** Thickness of the invisible boundary walls, meters. */
     boundaryWallThickness: 3,
     /** How long the nearest-street lookup is cached, seconds. */
@@ -107,8 +106,18 @@ export const TUNING = {
     fadeOutOfPose: 0.3,
   },
   lighting: {
-    sunIntensity: 2.6,
-    hemiIntensity: 1.1,
+    // Art direction: late-morning Austin summer light. Warm sun from the south-east, soft blue sky
+    // fill, warm green bounce from the lawns. Colors are sRGB hex (lil-gui color pickers).
+    sunIntensity: 2.7,
+    sunColor: '#fff0d8',
+    hemiIntensity: 1.25,
+    hemiSkyColor: '#d4e3f2',
+    hemiGroundColor: '#8a8160',
+    /** Gradient sky dome; fog fades to the horizon color. */
+    skyZenith: '#5f9fd9',
+    skyHorizon: '#cfe2ee',
+    /** Renderer exposure (with neutral tone mapping, which keeps hues but rolls off bright whites). */
+    exposure: 1.0,
     /** Half-size of the shadow camera box around the dog, meters. */
     shadowRadius: 50,
     shadowMapSize: 2048,

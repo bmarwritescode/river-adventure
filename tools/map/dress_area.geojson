@@ -1,0 +1,38 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "note": "Dressed area (art pass). Buildings whose centroid is inside get full houses; props are placed inside. Edit freely (lon/lat)."
+   },
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -97.7180482,
+       30.3163039
+      ],
+      [
+       -97.7188441,
+       30.3166957
+      ],
+      [
+       -97.7203939,
+       30.3143256
+      ],
+      [
+       -97.719598,
+       30.3139338
+      ],
+      [
+       -97.7180482,
+       30.3163039
+      ]
+     ]
+    ]
+   }
+  }
+ ]
+}

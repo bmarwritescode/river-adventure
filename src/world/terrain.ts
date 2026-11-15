@@ -3,7 +3,9 @@
  *
  * Grid points are at x = x0 + col*res, z = z0 + row*res (row-major, rows = +z).
  * Values are Int16 in units of `scale` meters (centimeters), relative to the origin's ground.
- * Sampling is bilinear and clamps to the grid edges.
+ * Sampling clamps to the grid edges and is piecewise-planar: each cell is two triangles split along
+ * the same diagonal as the rendered ground mesh (buildTile.buildGround), so sampled heights lie
+ * exactly on the visible ground (dog feet, draped decals and props never float or sink).
  */
 export interface HeightmapMeta {
   x0: number;
@@ -33,7 +35,7 @@ export class Heightmap {
     return this.data[r * cols + c]! * scale;
   }
 
-  /** Bilinear height at world (x, z). */
+  /** Height at world (x, z), on the same triangles as the ground mesh. */
   sample(x: number, z: number): number {
     const { x0, z0, res, cols, rows } = this.meta;
     let fc = (x - x0) / res;
@@ -45,6 +47,9 @@ export class Heightmap {
     const tx = fc - c;
     const tz = fr - r;
     const h00 = this.at(c, r), h10 = this.at(c + 1, r), h01 = this.at(c, r + 1), h11 = this.at(c + 1, r + 1);
-    return (h00 * (1 - tx) + h10 * tx) * (1 - tz) + (h01 * (1 - tx) + h11 * tx) * tz;
+    // Ground mesh triangles per cell: (c,r)-(c,r+1)-(c+1,r) and (c+1,r)-(c,r+1)-(c+1,r+1),
+    // i.e. split along the diagonal tx + tz = 1.
+    if (tx + tz <= 1) return h00 + (h10 - h00) * tx + (h01 - h00) * tz;
+    return h11 + (h01 - h11) * (1 - tx) + (h10 - h11) * (1 - tz);
   }
 }

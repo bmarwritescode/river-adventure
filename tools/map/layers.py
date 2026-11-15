@@ -75,6 +75,8 @@ class Building:
     height_source: str  # 'height' | 'levels' | 'default'
     name: str | None = None
     address: str | None = None
+    osm_id: int = 0
+    tags: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -170,21 +172,22 @@ def relation_polygon(osm: OsmData, rel) -> object | None:
 
 
 def tagged_polygons(osm: OsmData, pred) -> list[tuple[dict, object]]:
-    """(tags, geometry) for closed ways and multipolygon relations whose tags satisfy pred."""
+    """(tags, geometry) for closed ways and multipolygon relations whose tags satisfy pred.
+    The returned tags are a copy with the element's OSM id under "_id"."""
     out = []
     member_of_mp: set[int] = set()
     for rel in osm.relations.values():
         if rel.tags.get("type") == "multipolygon" and pred(rel.tags):
             g = relation_polygon(osm, rel)
             if g is not None:
-                out.append((rel.tags, g))
+                out.append(({**rel.tags, "_id": rel.id}, g))
                 member_of_mp.update(m["ref"] for m in rel.members if m.get("type") == "way")
     for w in osm.ways.values():
         if w.id in member_of_mp or not pred(w.tags):
             continue
         p = way_polygon(w)
         if p is not None:
-            out.append((w.tags, p))
+            out.append(({**w.tags, "_id": w.id}, p))
     return out
 
 
@@ -252,7 +255,8 @@ def extract_layers(osm: OsmData, area: Polygon) -> Layers:
                 continue
             h, src = building_height(tags, p.area)
             addr = " ".join(x for x in (tags.get("addr:housenumber"), tags.get("addr:street")) if x) or None
-            L.buildings.append(Building(p, round(h, 2), tags.get("building", "yes"), src, tags.get("name"), addr))
+            L.buildings.append(Building(p, round(h, 2), tags.get("building", "yes"), src, tags.get("name"), addr,
+                                        osm_id=int(tags["_id"]), tags=tags))
     L.notes.append(f"{n_invalid} invalid building polygons repaired with make_valid")
 
     # Roads

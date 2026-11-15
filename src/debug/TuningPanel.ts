@@ -115,6 +115,12 @@ export class TuningPanel {
     w.add(TUNING.triggers, 'exitMargin', 0, 2, 0.05).name('trigger exit margin');
     w.add(TUNING.lighting, 'sunIntensity', 0, 6, 0.05);
     w.add(TUNING.lighting, 'hemiIntensity', 0, 4, 0.05);
+    w.addColor(TUNING.lighting, 'sunColor');
+    w.addColor(TUNING.lighting, 'hemiSkyColor');
+    w.addColor(TUNING.lighting, 'hemiGroundColor');
+    w.addColor(TUNING.lighting, 'skyZenith');
+    w.addColor(TUNING.lighting, 'skyHorizon');
+    w.add(TUNING.lighting, 'exposure', 0.3, 2, 0.01);
     w.add(TUNING.debug, 'showTriggerZones').name('show trigger zones (T)').listen().onChange(hooks.triggerZonesToggled);
 
     gui.add({

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { DOG_PROFILES } from '../config/dogProfiles';
+import { getGroundHeight } from '../world/ground';
 import { findPlace, PLACES, SPAWN_PLACE_ID, TEST_TRIGGER_ZONES, type Place } from '../config/places';
 import { TUNING } from '../config/tuning';
 import { FollowCamera } from '../camera/FollowCamera';
@@ -56,6 +57,8 @@ export class Game {
   private frozen = true;
   private readonly lastInside = { x: 0, z: 0 };
   private street: NearestStreet | null = null;
+  /** Debug/screenshot camera from `?cam=x,y,z,lookX,lookY,lookZ`, y above ground (overrides the follow camera). */
+  private fixedCam: { pos: THREE.Vector3; look: THREE.Vector3 } | null = null;
   private streetTimer = 0;
   private readonly intent: DogIntent = {
     moveX: 0, moveZ: 0, pace: 'trot', sniff: false, jump: false, sit: false, playBow: false,
@@ -67,6 +70,8 @@ export class Game {
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    // Neutral tone mapping keeps palette hues but rolls off highlights (sunlit white walls).
+    this.renderer.toneMapping = THREE.NeutralToneMapping;
     container.appendChild(this.renderer.domElement);
     const canvas = this.renderer.domElement;
     canvas.tabIndex = 0;
@@ -128,8 +133,14 @@ export class Game {
 
   /** Load map data, place the dog, start the loop. */
   async start(): Promise<void> {
-    const at = new URLSearchParams(location.search).get('at');
-    const spawn = (at && findPlace(at)) || findPlace(SPAWN_PLACE_ID);
+    const params = new URLSearchParams(location.search);
+    const at = params.get('at');
+    const spawn = (at && (findPlace(at) ?? parsePlace(at))) || findPlace(SPAWN_PLACE_ID);
+    this.fixedCam = parseFixedCam(params.get('cam'));
+    if (params.get('ui') === '0') {
+      document.body.classList.add('clean');
+      TUNING.debug.showTriggerZones = false;
+    }
     if (!spawn) throw new Error(`Spawn place '${SPAWN_PLACE_ID}' not found in PLACES`);
     this.loop.start(); // render the sky + loading text while data loads
     await this.map.init();
@@ -211,7 +222,14 @@ export class Game {
 
     this.dogVisual.update(alpha, frameDt);
     this.cam.update(alpha, frameDt);
-    this.env.update(p.x, p.y, p.z);
+    if (this.fixedCam) {
+      // Heights are above the ground at each point.
+      const { pos: cp, look: cl } = this.fixedCam;
+      this.cam.camera.position.set(cp.x, cp.y + getGroundHeight(cp.x, cp.z), cp.z);
+      this.cam.camera.lookAt(cl.x, cl.y + getGroundHeight(cl.x, cl.z), cl.z);
+    }
+    this.env.update(p.x, p.y, p.z, this.cam.camera);
+    this.renderer.toneMappingExposure = TUNING.lighting.exposure;
     this.zoneView?.update();
     this.renderer.render(this.scene, this.cam.camera);
 
@@ -230,7 +248,8 @@ export class Game {
       `pace   ${this.intent.pace}${this.walkToggled ? ' (walk toggle)' : ''}\n` +
       `dog    ${this.dogVisual.kind === 'model' ? `rigged model (${this.dogVisual.clipNames.length} clips)` : `box (${this.dogVisual.kind})`}\n` +
       `draws  ${info.calls}   tris ${(info.triangles / 1000).toFixed(0)}k\n` +
-      (st ? `tiles  ${st.loaded} loaded, ${st.inFlight + st.queued} pending (last build ${st.lastBuildMs.toFixed(0)} ms)` : 'tiles  loading…'),
+      (st ? `tiles  ${st.loaded} loaded, ${st.inFlight + st.queued} pending (last build ${st.lastBuildMs.toFixed(0)} ms)` : 'tiles  loading…') +
+      (this.map.dressedStats.buildings ? `\ndressed ${this.map.dressedStats.buildings} buildings, ${this.map.dressedStats.props} props` : ''),
     );
   }
 
@@ -252,7 +271,7 @@ export class Game {
 
   private copyPosition(): void {
     const p = this.dog.position;
-    const snippet = `{ x: ${p.x.toFixed(1)}, z: ${p.z.toFixed(1)} }`;
+    const snippet = `{ x: ${p.x.toFixed(1)}, z: ${p.z.toFixed(1)}, heading: ${this.dog.heading.toFixed(2)} }`;
     console.info('[position]', snippet);
     const ok = (): void => this.toasts.show(`Copied ${snippet}`);
     const fail = (): void => this.toasts.show(`${snippet}  (clipboard blocked — also in console)`, 4);
@@ -322,7 +341,10 @@ export class Game {
       },
       get map() {
         const s = game.mapReady ? game.map.stats : { loaded: 0, inFlight: 0, queued: 0, triangles: 0 };
-        return { loadedTiles: s.loaded, pendingTiles: s.inFlight + s.queued, errors: game.map.errors };
+        return {
+          loadedTiles: s.loaded, pendingTiles: s.inFlight + s.queued, errors: game.map.errors,
+          dressedBuildings: game.map.dressedStats.buildings, dressedProps: game.map.dressedStats.props,
+        };
       },
       get street() { return game.street?.name ?? null; },
       get drawCalls() { return game.renderer.info.render.calls; },
@@ -348,4 +370,18 @@ export class Game {
       },
     };
   }
+}
+
+/** `?at=x,z[,heading]`: spawn at raw world coordinates (debug / screenshots). */
+function parsePlace(s: string): Place | undefined {
+  const v = s.split(',').map(Number);
+  if (v.length < 2 || v.some((n) => !Number.isFinite(n))) return undefined;
+  return { id: 'url', label: 'URL position', x: v[0]!, z: v[1]!, heading: v[2] };
+}
+
+function parseFixedCam(s: string | null): { pos: THREE.Vector3; look: THREE.Vector3 } | null {
+  if (!s) return null;
+  const v = s.split(',').map(Number);
+  if (v.length !== 6 || v.some((n) => !Number.isFinite(n))) return null;
+  return { pos: new THREE.Vector3(v[0], v[1], v[2]), look: new THREE.Vector3(v[3], v[4], v[5]) };
 }

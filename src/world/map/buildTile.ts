@@ -1,7 +1,8 @@
 import earcut from 'earcut';
 import type { MapStyle } from '../../config/mapStyle';
 import type { Heightmap } from '../terrain';
-import { AREA_KINDS, type FlatPolygon, type TileBuilding, type TileData } from './types';
+import { MeshBuilder, rgb, type RGB } from './dress/MeshBuilder';
+import { AREA_KINDS, type AreaKind, type FlatPolygon, type TileBuilding, type TileData } from './types';
 
 /**
  * Pure tile -> mesh-array builders. Runs inside the tile worker (no three.js, no DOM),
@@ -189,6 +190,7 @@ export function buildBuildings(
 /** Minimal 2D context surface we need (OffscreenCanvas in the worker, a canvas in tests). */
 export interface Paint2D {
   fillStyle: string | CanvasGradient | CanvasPattern;
+  globalAlpha: number;
   setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
   fillRect(x: number, y: number, w: number, h: number): void;
   beginPath(): void;
@@ -216,6 +218,24 @@ export function paintTile(ctx: Paint2D, data: TileData, tileSize: number, size: 
   ctx.fillStyle = style.ground;
   ctx.fillRect(0, 0, size, size);
   ctx.setTransform(s, 0, 0, s, -x0 * s, -z0 * s); // draw directly in world meters
+  // Lawn mottling: big soft light/dark patches so open ground doesn't read as one flat color.
+  if (style.groundMottle > 0) {
+    let seed = (data.i * 73856093) ^ (data.j * 19349663);
+    const rnd = (): number => {
+      seed = (seed * 1664525 + 1013904223) | 0;
+      return (seed >>> 0) / 4294967296;
+    };
+    for (let k = 0; k < 220; k++) {
+      const x = x0 + rnd() * tileSize, z = z0 + rnd() * tileSize, r = 3 + rnd() * 12;
+      ctx.globalAlpha = style.groundMottle * (0.5 + rnd());
+      ctx.fillStyle = rnd() < 0.5 ? '#6f8a4a' : '#b0b878';
+      ctx.beginPath();
+      ctx.moveTo(x + r, z);
+      ctx.arc(x, z, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
   for (const kind of AREA_KINDS) {
     const polys = data.areas[kind];
     if (!polys?.length) continue;
@@ -233,5 +253,100 @@ export function paintTile(ctx: Paint2D, data: TileData, tileSize: number, size: 
       ctx.arc(x, z, style.treeCanopyRadius, 0, Math.PI * 2);
     }
     ctx.fill();
+  }
+}
+
+/**
+ * Hard surfaces (road, sidewalk, driveway, ...) as geometry draped on the terrain, so their edges
+ * stay crisp up close (the painted ground texture is ~24 cm/pixel and blurs at dog height).
+ * Each kind sits at its own small lift above the ground, matching the paint order, so overlaps
+ * never z-fight. Triangles are cut along the ground mesh's grid so they follow the terrain exactly.
+ */
+export const SURFACE_LIFT: Partial<Record<AreaKind, number>> = {
+  parking: 0.015, driveway: 0.02, walk: 0.025, sidewalk: 0.03, road: 0.035,
+};
+export function buildSurfaces(mb: MeshBuilder, data: TileData, hm: Heightmap | null, style: MapStyle): void {
+  for (const kind of AREA_KINDS) {
+    const lift = SURFACE_LIFT[kind];
+    const polys = data.areas[kind];
+    if (lift === undefined || !polys?.length) continue;
+    const color = rgb(style.layers[kind]);
+    for (const poly of polys) {
+      const flat: number[] = [];
+      const holes: number[] = [];
+      poly.forEach((ring, ri) => {
+        if (ring.length < 6) return;
+        if (ri > 0) holes.push(flat.length / 2);
+        for (const c of ring) flat.push(c);
+      });
+      if (flat.length < 6) continue;
+      const tris = earcut(flat, holes, 2);
+      for (let t = 0; t < tris.length; t += 3) {
+        const a = tris[t]!, b = tris[t + 1]!, c = tris[t + 2]!;
+        drapeTriangle(mb, [flat[a * 2]!, flat[a * 2 + 1]!, flat[b * 2]!, flat[b * 2 + 1]!, flat[c * 2]!, flat[c * 2 + 1]!], hm, lift, color);
+      }
+    }
+  }
+}
+
+type Poly2 = number[]; // flat x, z (convex)
+
+/** Clip a convex polygon to the half-plane a*x + b*z <= c (Sutherland–Hodgman, one edge). */
+function clipHalf(p: Poly2, a: number, b: number, c: number): Poly2 {
+  const out: Poly2 = [];
+  const n = p.length / 2;
+  for (let i = 0; i < n; i++) {
+    const x0 = p[i * 2]!, z0 = p[i * 2 + 1]!;
+    const x1 = p[((i + 1) % n) * 2]!, z1 = p[((i + 1) % n) * 2 + 1]!;
+    const d0 = a * x0 + b * z0 - c, d1 = a * x1 + b * z1 - c;
+    if (d0 <= 0) out.push(x0, z0);
+    if ((d0 < 0 && d1 > 0) || (d0 > 0 && d1 < 0)) {
+      const t = d0 / (d0 - d1);
+      out.push(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t);
+    }
+  }
+  return out;
+}
+
+/**
+ * Emit triangle (a, b, c) cut along the terrain mesh's grid lines and cell diagonals, so every piece
+ * lies on exactly one (planar) ground triangle: the draped surface matches the ground exactly.
+ */
+export function drapeTriangle(mb: MeshBuilder, tri: Poly2, hm: Heightmap | null, lift: number, color: RGB): void {
+  const emit = (p: Poly2): void => {
+    const n = p.length / 2;
+    if (n < 3) return;
+    const pts: [number, number, number][] = [];
+    for (let i = 0; i < n; i++) pts.push([p[i * 2]!, heightAt(hm, p[i * 2]!, p[i * 2 + 1]!) + lift, p[i * 2 + 1]!]);
+    mb.face(pts, color, [0, 1, 0]);
+  };
+  if (!hm) {
+    emit(tri);
+    return;
+  }
+  const { x0, z0, res } = hm.meta;
+  let minx = Infinity, maxx = -Infinity, minz = Infinity, maxz = -Infinity;
+  for (let i = 0; i < tri.length; i += 2) {
+    minx = Math.min(minx, tri[i]!); maxx = Math.max(maxx, tri[i]!);
+    minz = Math.min(minz, tri[i + 1]!); maxz = Math.max(maxz, tri[i + 1]!);
+  }
+  const r0 = Math.floor((minz - z0) / res), r1 = Math.floor((maxz - z0) / res);
+  for (let r = r0; r <= r1; r++) {
+    const zA = z0 + r * res, zB = zA + res;
+    let band = clipHalf(tri, 0, -1, -zA); // z >= zA
+    band = clipHalf(band, 0, 1, zB); // z <= zB
+    if (band.length < 6) continue;
+    let bx0 = Infinity, bx1 = -Infinity;
+    for (let i = 0; i < band.length; i += 2) { bx0 = Math.min(bx0, band[i]!); bx1 = Math.max(bx1, band[i]!); }
+    const c0 = Math.floor((bx0 - x0) / res), c1 = Math.floor((bx1 - x0) / res);
+    for (let c = c0; c <= c1; c++) {
+      const xA = x0 + c * res, xB = xA + res;
+      let cell = clipHalf(band, -1, 0, -xA); // x >= xA
+      cell = clipHalf(cell, 1, 0, xB); // x <= xB
+      if (cell.length < 6) continue;
+      // Ground mesh diagonal: (x - xA) + (z - zA) = res.
+      emit(clipHalf(cell, 1, 1, xA + zA + res));
+      emit(clipHalf(cell, -1, -1, -(xA + zA + res)));
+    }
   }
 }

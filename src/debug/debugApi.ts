@@ -28,7 +28,11 @@ export interface GameDebugApi {
     readonly enterCount: number;
     readonly exitCount: number;
   };
-  readonly map: { readonly loadedTiles: number; readonly pendingTiles: number; readonly errors: number };
+  readonly map: {
+    readonly loadedTiles: number; readonly pendingTiles: number; readonly errors: number;
+    /** Art-dressed buildings / props in the loaded tiles (Step 5 test block). */
+    readonly dressedBuildings: number; readonly dressedProps: number;
+  };
   /** Nearest named street, or null. */
   readonly street: string | null;
   readonly drawCalls: number;

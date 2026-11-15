@@ -12,3 +12,4 @@ tools/map/.venv/
 tools/map/cache/
 tools/map/out/
 __pycache__/
+tools/shots/out

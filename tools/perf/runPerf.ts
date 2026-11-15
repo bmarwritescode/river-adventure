@@ -153,8 +153,16 @@ async function runSetup(browser: Browser, setup: Setup): Promise<Record<string, 
   const posAfter = await page.evaluate(() => window.__game!.dog.position);
   out.run.distanceM = round(Math.hypot(posAfter.x - posBefore.x, posAfter.z - posBefore.z), 0);
 
-  // teleports: whole areas load at once (worst case for stutters)
+  // block: the fully dressed art block (Duval 51st -> 53rd): densest geometry + shadows, sprint through it
   await page.keyboard.press('Backquote');
+  await teleport(page, 'art-block');
+  await sleep(1500);
+  const blockStart = await page.evaluate(() => window.__game!.dog.position);
+  out.block = await measure(page, () => hold(page, ['ShiftLeft', 'KeyW'], 12000));
+  const blockEnd = await page.evaluate(() => window.__game!.dog.position);
+  out.block.distanceM = round(Math.hypot(blockEnd.x - blockStart.x, blockEnd.z - blockStart.z), 0);
+
+  // teleports: whole areas load at once (worst case for stutters)
   const readyTimes: number[] = [];
   out.teleport = await measure(page, async () => {
     for (const id of ['nw-corner', 'ne-corner', 'se-corner', 'sw-corner', '51st-duval', 'origin']) {
@@ -264,7 +272,7 @@ async function main(): Promise<void> {
     const prev = JSON.parse(readFileSync(prevFile, 'utf8')) as typeof report;
     const warnings: string[] = [];
     for (const [setup, scenarios] of Object.entries(results)) {
-      for (const scenario of ['run', 'topDown', 'teleport']) {
+      for (const scenario of ['run', 'block', 'topDown', 'teleport']) {
         for (const metric of ['p95CpuMs', 'avgCpuMs', 'maxDrawCalls', 'maxTriangles', 'maxHeapMB', 'maxReadyMs']) {
           const now = scenarios[scenario]?.[metric];
           const was = prev.results[setup]?.[scenario]?.[metric];
@@ -281,8 +289,8 @@ async function main(): Promise<void> {
   const hist = resolve(ROOT, 'perf/history.csv');
   if (!existsSync(hist)) appendFileSync(hist, 'date,commit,setup,run_p95FrameMs,run_p95CpuMs,run_hitches,teleport_hitches,teleport_maxReadyMs,topDown_p95FrameMs,maxDrawCalls,maxTriangles,failures\n');
   for (const [setup, r] of Object.entries(results)) {
-    const draws = Math.max(...['idle', 'run', 'topDown'].map((s) => r[s]?.maxDrawCalls ?? 0));
-    const tris = Math.max(...['idle', 'run', 'topDown'].map((s) => r[s]?.maxTriangles ?? 0));
+    const draws = Math.max(...['idle', 'run', 'block', 'topDown'].map((s) => r[s]?.maxDrawCalls ?? 0));
+    const tris = Math.max(...['idle', 'run', 'block', 'topDown'].map((s) => r[s]?.maxTriangles ?? 0));
     appendFileSync(hist, [report.date, commit, setup, r.run?.p95FrameMs, r.run?.p95CpuMs, r.run?.hitches, r.teleport?.hitches,
       r.teleport?.maxReadyMs, r.topDown?.p95FrameMs, draws, tris, failures.filter((f) => f.startsWith(setup)).length].join(',') + '\n');
   }

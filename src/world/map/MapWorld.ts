@@ -12,11 +12,13 @@ import { MAP_DATA_VERSION, tileKey, type FlatCoords, type MapIndex, type TileStr
 interface LoadedTile {
   key: string;
   group: THREE.Group;
-  groundMaterial: THREE.MeshLambertMaterial;
-  texture: THREE.Texture;
+  /** Per-tile materials and textures (ground, signs) to dispose on unload. */
+  materials: THREE.Material[];
+  textures: THREE.Texture[];
   obstacleIds: string[];
   streets: TileStreet[];
   triangles: number;
+  dressed: BuiltTile['dressed'];
 }
 
 export interface NearestStreet {
@@ -56,6 +58,12 @@ export class MapWorld {
   private workers: Worker[] = [];
   private nextWorker = 0;
   private readonly buildingMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
+  /** Lane markings: pulled toward the camera in depth so they never z-fight the road. */
+  private readonly decalMaterial = new THREE.MeshLambertMaterial({
+    vertexColors: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
+  });
+  /** Dressing stats of the loaded tiles (dressed buildings, props, triangles). */
+  dressedStats = { buildings: 0, props: 0 };
   private readonly maxAnisotropy: number;
   private lastBuildMs = 0;
   errors = 0;
@@ -218,7 +226,9 @@ export class MapWorld {
       geometries += t.group.children.length; // one geometry per mesh (ground, buildings)
       obstacles += t.obstacleIds.length;
     }
-    return { geometries, textures: this.loaded.size, obstacles };
+    let textures = 0;
+    for (const t of this.loaded.values()) textures += t.textures.length;
+    return { geometries, textures, obstacles };
   }
 
   get stats(): { loaded: number; inFlight: number; queued: number; triangles: number; lastBuildMs: number } {
@@ -237,6 +247,7 @@ export class MapWorld {
     for (const w of this.workers) w.terminate();
     this.workers = [];
     this.buildingMaterial.dispose();
+    this.decalMaterial.dispose();
     this.group.removeFromParent();
   }
 
@@ -300,12 +311,44 @@ export class MapWorld {
     group.add(ground);
 
     let triangles = t.ground.indices.length / 3;
+    const materials: THREE.Material[] = [groundMaterial];
+    const textures: THREE.Texture[] = [texture];
     if (t.buildings.indices.length) {
       const buildings = new THREE.Mesh(this.geometry(t.buildings), this.buildingMaterial);
       buildings.castShadow = true;
       buildings.receiveShadow = true;
       group.add(buildings);
       triangles += t.buildings.indices.length / 3;
+    }
+    if (t.decals?.indices.length) {
+      const decals = new THREE.Mesh(this.geometry(t.decals), this.decalMaterial);
+      decals.receiveShadow = true;
+      decals.renderOrder = 1;
+      group.add(decals);
+      triangles += t.decals.indices.length / 3;
+    }
+    if (t.signs) {
+      const tex = new THREE.DataTexture(t.signs.pixels, t.signs.width, t.signs.height, THREE.RGBAFormat);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.flipY = false;
+      tex.generateMipmaps = true;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.anisotropy = this.maxAnisotropy;
+      tex.needsUpdate = true;
+      this.renderer.initTexture(tex);
+      const mat = new THREE.MeshLambertMaterial({ map: tex });
+      const signs = new THREE.Mesh(this.geometry(t.signs.mesh), mat);
+      signs.castShadow = true;
+      signs.receiveShadow = true;
+      group.add(signs);
+      materials.push(mat);
+      textures.push(tex);
+      triangles += t.signs.mesh.indices.length / 3;
+    }
+    if (t.dressed) {
+      this.dressedStats.buildings += t.dressed.buildings;
+      this.dressedStats.props += t.dressed.props;
     }
     this.group.add(group);
 
@@ -322,7 +365,8 @@ export class MapWorld {
     }
 
     this.loaded.set(t.key, {
-      key: t.key, group, groundMaterial, texture, obstacleIds: ids, streets: t.streets, triangles,
+      key: t.key, group, materials, textures, obstacleIds: ids, streets: t.streets, triangles,
+      dressed: t.dressed,
     });
     pushCapped(this.timings.finalize, performance.now() - t0);
   }
@@ -346,8 +390,12 @@ export class MapWorld {
       if (o instanceof THREE.Mesh) o.geometry.dispose();
     });
     t.group.removeFromParent();
-    t.groundMaterial.dispose();
-    t.texture.dispose();
+    for (const m of t.materials) m.dispose();
+    for (const x of t.textures) x.dispose();
+    if (t.dressed) {
+      this.dressedStats.buildings -= t.dressed.buildings;
+      this.dressedStats.props -= t.dressed.props;
+    }
   }
 
   /**

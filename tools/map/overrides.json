@@ -1,0 +1,5 @@
+{
+  "_comment": "Per-building corrections for dressed buildings, keyed by OSM way id (find ids with the in-game building readout or openstreetmap.org). Keys: kind (house|garage|shop|apts), roof (hip|gable|flat), porch ([width, depth] or 0 for none), pier (0|1), wall / trim / roofColor / door (CSS colors), sign (text on a shop front). Re-run npm run map:build after editing.",
+  "379191561": { "kind": "shop", "_note": "501 E 53rd St: restaurant building (1980), per Travis County records" },
+  "381764304": { "sign": "Hyde Park Animal Clinic" }
+}

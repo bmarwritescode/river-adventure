@@ -13,7 +13,50 @@ export interface TileBuilding {
   t?: string;
   n?: string;
   a?: string;
+  /** OSM way/relation id (for overrides and debugging). */
+  id?: number;
+  /** Present when the building is inside the dressed area: full house/shop instead of a gray box. */
+  d?: BuildingDress;
 }
+
+export type DressKind = 'house' | 'garage' | 'shop' | 'apts';
+export type RoofKind = 'hip' | 'gable' | 'flat';
+
+/** Layout decisions made offline (tools/map/dress.py); the game decides how they look. */
+export interface BuildingDress {
+  k: DressKind;
+  /** Stable per-building seed for colors and small variations. */
+  seed: number;
+  roof?: RoofKind;
+  /** Front direction (unit vector toward the street it faces). */
+  f?: [number, number];
+  /** Front door position on the front wall. */
+  door?: [number, number];
+  /** Porch [width, depth], centred on the door, outside the footprint. */
+  porch?: [number, number];
+  /** Pier-and-beam (raised floor with skirting). */
+  pier?: 0 | 1;
+  /** Shop-front sign text. */
+  sign?: string;
+  /** Hand overrides (CSS colors). */
+  wall?: string;
+  trim?: string;
+  roofColor?: string;
+  doorColor?: string;
+}
+
+/** Street-name sign: a post with two blades (a along the main street, b along the cross street). */
+export interface TileSign {
+  x: number;
+  z: number;
+  a: string;
+  /** Blade rotation (rotation.y that lays the blade's local +X along its street). */
+  ar: number;
+  b: string;
+  br: number;
+}
+
+export type MarkKind = 'yellow2' | 'white' | 'stop';
 
 export interface TileStreet {
   n: string;
@@ -24,7 +67,8 @@ export interface TileStreet {
   p: FlatCoords;
 }
 
-export const AREA_KINDS = ['grass', 'wood', 'pitch', 'parking', 'water', 'sidewalk', 'road', 'rail'] as const;
+/** Paint order (later kinds paint over earlier ones). */
+export const AREA_KINDS = ['grass', 'wood', 'pitch', 'bed', 'parking', 'water', 'driveway', 'walk', 'sidewalk', 'road', 'rail'] as const;
 export type AreaKind = (typeof AREA_KINDS)[number];
 
 export interface TileData {
@@ -35,7 +79,18 @@ export interface TileData {
   areas: Partial<Record<AreaKind, FlatPolygon[]>>;
   streets: TileStreet[];
   trees: FlatCoords;
+  /** Dressing props per kind, flat [x, z, rot, scale, variant, ...] (stride 5). rot = rotation.y. */
+  props?: Record<string, number[]>;
+  signs?: TileSign[];
+  /** Overhead wire spans between utility poles, flat [x0, z0, x1, z1, ...]. */
+  wires?: number[];
+  /** Lane markings. */
+  marks?: { t: MarkKind; p: FlatCoords }[];
+  /** Curb polylines. */
+  curbs?: FlatCoords[];
 }
+
+export const PROP_STRIDE = 5;
 
 export interface TerrainInfo {
   file: string;
@@ -65,9 +120,11 @@ export interface MapIndex {
   margin: FlatCoords;
   tiles: { i: number; j: number; bytes: number }[];
   attribution: string;
+  /** Area with full art dressing (Step 5 test block; Step 7 widens it). */
+  dressArea?: FlatCoords;
 }
 
-export const MAP_DATA_VERSION = 1;
+export const MAP_DATA_VERSION = 2;
 
 export function tileKey(i: number, j: number): string {
   return `${i}_${j}`;

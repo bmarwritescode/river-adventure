@@ -1,7 +1,10 @@
 /// <reference lib="webworker" />
 import type { MapStyle } from '../../config/mapStyle';
 import { Heightmap, type HeightmapMeta } from '../terrain';
-import { buildBuildings, buildGround, paintTile, type Footprints, type MeshArrays } from './buildTile';
+import { buildBuildings, buildGround, buildSurfaces, paintTile, type Footprints, type MeshArrays } from './buildTile';
+import { buildDressing, mergeFootprints, mergeMeshes } from './dress';
+import { MeshBuilder } from './dress/MeshBuilder';
+import type { SignMeshResult, SignPainter } from './dress/signs';
 import { MAP_DATA_VERSION, type TileData, type TileStreet } from './types';
 
 /**
@@ -21,6 +24,11 @@ export interface BuiltTile {
   buildings: MeshArrays;
   footprints: Footprints;
   streets: TileStreet[];
+  /** Lane markings (dressed area only). */
+  decals: MeshArrays | null;
+  /** Textured sign quads + their atlas (dressed area only). */
+  signs: SignMeshResult | null;
+  dressed: { buildings: number; props: number; triangles: number } | null;
   /** Ground texture as raw RGBA pixels (textureSize x textureSize, row 0 = north edge). */
   pixels: Uint8Array;
   textureSize: number;
@@ -54,7 +62,17 @@ ctx.onmessage = async (ev: MessageEvent<WorkerRequest>) => {
     if (!style) throw new Error('worker not initialized');
 
     const ground = buildGround(data.i, data.j, tileSize, hm);
-    const { mesh: buildings, footprints } = buildBuildings(data.buildings, hm, style, data.i * 7919 + data.j);
+    // Gray boxes outside the dressed area; full houses + props inside it (merged into one mesh).
+    const gray = buildBuildings(data.buildings.filter((b) => !b.d), hm, style, data.i * 7919 + data.j);
+    const dressing = buildDressing(data, hm, style, (w, h) =>
+      new OffscreenCanvas(w, h).getContext('2d') as unknown as SignPainter | null);
+    const buildings = dressing ? mergeMeshes(gray.mesh, dressing.structures) : gray.mesh;
+    const footprints = dressing ? mergeFootprints(gray.footprints, dressing.footprints) : gray.footprints;
+    // Crisp hard surfaces everywhere (+ lane markings / wires in the dressed area): one decal mesh.
+    const sm = new MeshBuilder();
+    buildSurfaces(sm, data, hm, style);
+    const surfaces = sm.triangles ? sm.build() : null;
+    const decals = surfaces && dressing?.decals ? mergeMeshes(surfaces, dressing.decals) : surfaces ?? dressing?.decals ?? null;
     const canvas = new OffscreenCanvas(msg.textureSize, msg.textureSize);
     const g = canvas.getContext('2d');
     if (!g) throw new Error('OffscreenCanvas 2D context unavailable');
@@ -65,9 +83,12 @@ ctx.onmessage = async (ev: MessageEvent<WorkerRequest>) => {
     const tile: BuiltTile = {
       key: msg.key, i: data.i, j: data.j, ground, buildings, footprints,
       streets: data.streets, pixels, textureSize: msg.textureSize, buildMs: performance.now() - t0,
+      decals, signs: dressing?.signs ?? null, dressed: dressing?.counts ?? null,
     };
     const transfer: Transferable[] = [pixels.buffer];
-    for (const m of [ground, buildings]) {
+    if (tile.signs) transfer.push(tile.signs.pixels.buffer);
+    for (const m of [ground, buildings, tile.decals, tile.signs?.mesh]) {
+      if (!m) continue;
       transfer.push(m.positions.buffer, m.normals.buffer, m.indices.buffer);
       if (m.uvs) transfer.push(m.uvs.buffer);
       if (m.colors) transfer.push(m.colors.buffer);

@@ -144,7 +144,8 @@ test('soak: random wander keeps every invariant @soak', async ({ page }, testInf
   const rand = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
 
   const errors = collectErrors(page);
-  await page.goto('/');
+  // SOAK_AT=<place id> starts somewhere else (e.g. art-block: dense props and porches).
+  await page.goto(process.env.SOAK_AT ? `/?at=${process.env.SOAK_AT}` : '/');
   await gameReady(page);
   await page.keyboard.press('KeyM'); // compass controls so random directions mean something
 

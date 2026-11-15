@@ -31,7 +31,7 @@ The owner is an experienced programmer but new to game dev. Explain game-dev-spe
 2. Real map as gray blocks: offline script pulls OSM streets/footprints, converts to local meters, writes tiles; game streams tiles near the dog. ✅
 3. Crude real-dog test: rigged .glb with named clips, end to end (+ sit and play bow). ✅
 4. Stability baseline: perf budget + automated smoke tests after every change. ✅
-5. Art direction on one fully dressed block.
+5. Art direction on one fully dressed block (Duval 51st→53rd; see `docs/art-direction.md`). ✅
 6. Make the dog recognizable (art iteration).
 7. Fill the neighborhood: procedural houses, trees, street dressing, landmarks.
 8. Scavenger hunt: clue chain, clue UI, sniffing/scent trails, ending at home, save/load, polish (sound, map, ambient life).
@@ -83,7 +83,8 @@ The owner is an experienced programmer but new to game dev. Explain game-dev-spe
 
 ### World
 
-- All ground queries go through **`getGroundHeight(x, z)`** (`src/world/ground.ts`). Returns 0 today; later samples a heightmap.
+- All ground queries go through **`getGroundHeight(x, z)`** (`src/world/ground.ts`). It samples the terrain heightmap
+  piecewise-planar, on exactly the same triangles as the rendered ground mesh (so anything placed with it sits on the visible ground).
 - All obstacle collision goes through **`CollisionWorld`** (`src/world/collision.ts`): dog = circle in XZ vs
   obstacle footprints (2D polygons, convex or concave, extruded to a height). Grid broadphase. Push-out resolution
   → sliding along walls. Also provides `raycast` (used by the camera). Test boxes today, OSM footprints later.
@@ -109,13 +110,19 @@ The owner is an experienced programmer but new to game dev. Explain game-dev-spe
 - OSM attribution ("© OpenStreetMap contributors") must stay visible in the game and README.
 - Output: `public/map/index.json` + `tiles/{i}_{j}.json` (250 m world-grid tiles, DATA not meshes) +
   `terrain.bin` (Int16 cm, 5 m grid aligned to tiles). Schema: `src/world/map/types.ts` ↔ `tools/map/tiles.py`;
-  bump `MAP_DATA_VERSION` in both when it changes. Generated files are committed.
+  bump `MAP_DATA_VERSION` in both when it changes (now 2). Generated files are committed.
 - Game side (`src/world/map/`): `MapWorld` streams tiles around the dog; `tileWorker.ts` builds meshes in a
   Web Worker (pure builders in `buildTile.ts`). Per tile: ONE ground mesh (terrain grid with the surface layers
   painted into a texture; colors in `src/config/mapStyle.ts`) + ONE merged building mesh. Building footprints
   go to `CollisionWorld`; the boundary is invisible collision walls. The dog is frozen until the tiles around it
   (and their collision) are loaded.
 - Named places (spawn, teleport list, test zones) live in `src/config/places.ts`.
+- **Dressing (Step 5+):** inside `tools/map/dress_area.geojson`, `tools/map/dress.py` decides WHAT goes WHERE
+  (building kind/front/door/porch/roof, driveways, walks, trees, poles, signs, markings, ...) and writes it into the
+  tiles; `src/world/map/dress/` (in the worker) decides HOW it looks. Per-building corrections:
+  `tools/map/overrides.json` (by OSM id). Palette: `MAP_STYLE.dress`. Houses + props merge into the tile's building
+  mesh; one decal mesh (draped hard surfaces + markings + wires, no shadows) and one sign mesh (text atlas) per tile.
+  Art rules and budgets: `docs/art-direction.md`. Review art changes with `npm run shots` (fixed views).
 
 ### Code conventions
 
@@ -145,7 +152,8 @@ The owner is an experienced programmer but new to game dev. Explain game-dev-spe
 | `npm run check` | build + unit tests + 2 `@quick` smoke tests (WebKit), ~15 s | automatically on every commit (pre-commit hook) |
 | `npm test` | unit + all smoke + stability tests, both browsers, ~3 min | after every change, before saying it's done |
 | `npm run perf` | production build benchmark vs `perf/budget.json` (Chrome GPU, WebKit, Chrome CPU-throttled 4×) | after any change to rendering, map/streaming, assets, the dog visual or the loop; at the end of each roadmap step. Report the headline numbers. |
-| `npm run test:soak` | seeded random wander checking invariants (`SOAK_SECONDS`, `SOAK_SEED`) | at the end of each roadmap step |
+| `npm run shots` | fixed-camera screenshots of the art block → `tools/shots/out/` | after any visual change; compare with the previous set |
+| `npm run test:soak` | seeded random wander checking invariants (`SOAK_SECONDS`, `SOAK_SEED`, `SOAK_AT=art-block`) | at the end of each roadmap step |
 
 - Pre-commit hook: `.githooks/pre-commit` (enabled by `npm install` via `prepare`). Never bypass it with
   `--no-verify`; if it fails, fix the cause.
@@ -169,6 +177,9 @@ Lessons so far (keep following them):
 - Low frame rates expose streaming bugs (a tile re-request bug only showed at ~6 fps): keep testing in
   headless software-GL Chromium too.
 - Benchmark routes must stay on open streets (a route that hits a wall measures nothing).
+- Vertex colors are LINEAR in three.js: convert palette sRGB hex (`dress/MeshBuilder.rgb`) or everything looks washed out.
+- Anything draped on the ground must follow the ground mesh's triangles exactly (`drapeTriangle` cuts along the
+  5 m grid + diagonals); bilinear sampling + a small lift z-fights. Prefer exact draping over bigger lifts.
 
 ## Workflow rules
 
@@ -191,3 +202,4 @@ Lessons so far (keep following them):
   `--use-angle=metal --enable-gpu --ignore-gpu-blocklist`. Slow frame rates also expose streaming bugs, so keep
   testing in the slow default too.
 - Vite must run under Node 22: source nvm *before* starting `npx vite` in the same command.
+- The shell's `rm` is interactive (prompts and hangs): use `rm -f`.

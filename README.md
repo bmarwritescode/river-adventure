@@ -25,6 +25,7 @@ npm run check    # quick check (~15 s); runs automatically as a git pre-commit h
 npm run perf     # performance benchmark vs perf/budget.json (report: perf/reports/latest.json)
 npm run test:soak  # long random-wander stability test (SOAK_SECONDS=120, SOAK_SEED=...)
 npm run dog:build  # regenerate the placeholder rigged dog (public/models/dog_main.glb)
+npm run shots      # art-review screenshots of the dressed block (tools/shots/out/)
 ```
 
 `dist/` is a static site (relative paths), so it can be shared by uploading it to any static host.
@@ -49,8 +50,9 @@ npm run dog:build  # regenerate the placeholder rigged dog (public/models/dog_ma
 | G | Performance overlay (frame-time graph, CPU time, draw calls, memory) |
 | ` (backtick) | Tuning panel (includes the **Teleport** dropdown) |
 
-Start somewhere specific with `?at=<place id>`, e.g. `http://localhost:5173/?at=51st-duval`
-(ids are in `src/config/places.ts`).
+Start somewhere specific with `?at=<place id>`, e.g. `http://localhost:5173/?at=art-block` (the fully
+dressed Duval block), or `?at=x,z,heading` (ids are in `src/config/places.ts`). Debug extras: `?ui=0` hides
+the UI, `?cam=x,y,z,lookX,lookY,lookZ` fixes the camera (heights above ground).
 
 See `CLAUDE.md` for architecture contracts and conventions.
 
@@ -75,6 +77,8 @@ Outputs:
 - `tools/map/out/preview.png`: preview of streets, buildings, boundary and origin.
 - `public/map/index.json`, `public/map/tiles/{i}_{j}.json`: 250 m map tiles (data, not meshes).
 - `public/map/terrain.bin`: USGS 3DEP heightmap (5 m grid).
+- `tools/map/dress_area.geojson`: the art-dressed area (editable). Per-building fixes: `tools/map/overrides.json`.
+  Art rules: `docs/art-direction.md`.
 
 The generated `public/map` files are committed, so the game runs without Python.
 

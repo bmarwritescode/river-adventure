@@ -42,3 +42,6 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #9cc8ea; }
   background: rgba(0, 0, 0, 0.55); padding: 4px; border-radius: 4px;
 }
 .perf-hud canvas { display: block; margin-bottom: 3px; }
+
+/* ?ui=0: clean view for screenshots (attribution stays visible). */
+body.clean .overlay, body.clean .help, body.clean .toasts, body.clean .lil-gui, body.clean .loading { display: none !important; }

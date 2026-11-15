@@ -9,6 +9,7 @@ Assignment rules:
   areas      clipped to the tile square (merged per kind, no overlap between tiles)
   streets    clipped to the tile square (names kept)
   trees      by position
+  dressing   props / signs by position, wires by midpoint, curbs + markings clipped like streets
 """
 
 from __future__ import annotations
@@ -23,10 +24,11 @@ from pathlib import Path
 from shapely.geometry import LineString, MultiLineString, Polygon, box
 from shapely.geometry.polygon import orient
 
+from dress import Dressing, building_records_extra
 from layers import Layers, polygons_of
 
 TILE_SIZE = 250.0
-DATA_VERSION = 1
+DATA_VERSION = 2
 
 
 def _flat(coords) -> list[float]:
@@ -69,7 +71,8 @@ def tile_range(bounds) -> tuple[int, int, int, int]:
     return i0, j0, i1, j1
 
 
-def write_tiles(layers: Layers, boundary: Polygon, area: Polygon, out_dir: Path, meta: dict) -> dict:
+def write_tiles(layers: Layers, boundary: Polygon, area: Polygon, out_dir: Path, meta: dict,
+                dressing: Dressing | None = None) -> dict:
     """Write tiles + index. Returns the index dict (also written to out_dir/index.json)."""
     tiles_dir = out_dir / "tiles"
     if tiles_dir.exists():
@@ -78,10 +81,14 @@ def write_tiles(layers: Layers, boundary: Polygon, area: Polygon, out_dir: Path,
 
     i0, j0, i1, j1 = tile_range(area.bounds)
     tiles: dict[tuple[int, int], dict] = defaultdict(lambda: {"buildings": [], "areas": {}, "streets": [], "trees": []})
+    D = dressing or Dressing()
 
     for b in layers.buildings:
         rp = b.poly.representative_point()
-        rec = {"r": _poly_rings(b.poly), "h": b.height}
+        rec = {"r": _poly_rings(b.poly), "h": b.height, "id": b.osm_id}
+        extra = building_records_extra(b)
+        if extra:
+            rec["d"] = extra
         if b.kind != "yes":
             rec["t"] = b.kind
         if b.name:
@@ -92,6 +99,18 @@ def write_tiles(layers: Layers, boundary: Polygon, area: Polygon, out_dir: Path,
 
     for t in layers.trees:
         tiles[tile_index(t.x, t.y)]["trees"].extend([round(t.x, 2), round(t.y, 2)])
+
+    # Dressing: props as flat [x, z, rot, scale, variant, ...] per kind (stride 5).
+    for kind, items in D.props.items():
+        for x, z, rot, sc, var in items:
+            tile = tiles[tile_index(x, z)]
+            tile.setdefault("props", {}).setdefault(kind, []).extend(
+                [round(x, 2), round(z, 2), round(rot, 3), round(sc, 3), var])
+    for sg in D.signs:
+        tiles[tile_index(sg["x"], sg["z"])].setdefault("signs", []).append(sg)
+    for x0, z0, x1, z1 in D.wires:
+        tiles[tile_index((x0 + x1) / 2, (z0 + z1) / 2)].setdefault("wires", []).extend(
+            [round(x0, 2), round(z0, 2), round(x1, 2), round(z1, 2)])
 
     for i in range(i0, i1 + 1):
         for j in range(j0, j1 + 1):
@@ -105,6 +124,16 @@ def write_tiles(layers: Layers, boundary: Polygon, area: Polygon, out_dir: Path,
                 polys = [p for p in polygons_of(geom.intersection(sq)) if p.area > 0.5]
                 if polys:
                     tile["areas"][kind] = [_poly_rings(p) for p in polys]
+            for kind, ln in D.marks:
+                if ln.intersects(sq):
+                    for part in _lines(ln.intersection(sq)):
+                        if part.length >= 0.3:
+                            tile.setdefault("marks", []).append({"t": kind, "p": _flat(part.coords)})
+            for ln in D.curbs:
+                if ln.intersects(sq):
+                    for part in _lines(ln.intersection(sq)):
+                        if part.length >= 0.5:
+                            tile.setdefault("curbs", []).append(_flat(part.coords))
             for s in layers.streets:
                 if not s.line.intersects(sq):
                     continue
@@ -136,6 +165,7 @@ def write_tiles(layers: Layers, boundary: Polygon, area: Polygon, out_dir: Path,
         "margin": _flat(orient(area, 1.0).exterior.coords),
         "tiles": index_tiles,
         "attribution": "© OpenStreetMap contributors",
+        **({"dressArea": _flat(orient(D.area, 1.0).exterior.coords)} if D.area is not None and isinstance(D.area, Polygon) else {}),
     }
     (out_dir / "index.json").write_text(json.dumps(index, separators=(",", ":")))
     index["_sizes"] = {"tilesRaw": total_raw, "tilesGzip": total_gz}

@@ -22,12 +22,13 @@ import argparse
 import time
 from collections import Counter
 
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from shapely.prepared import prep
 
 import config
+from dress import dress
 from boundary import load_or_create_boundary, load_or_create_origin, playable_boundary
-from layers import extract_layers
+from layers import extract_layers, polygons_of
 from osm_fetch import fetch_osm, osm_raw_meta
 from osm_parse import OsmData
 from preview import render_preview
@@ -157,6 +158,16 @@ def main() -> None:
           f"{pinfo['removed_m2']} m²) along: {', '.join(pinfo['streets'])}")
     render_preview(osm, b, config.OUT_DIR / "preview.png", stats, playable)
 
+    # --- Step 5: dressing (houses, props, driveways, markings) inside the dressed area -----------
+    t2 = time.time()
+    dressing = dress(osm, layers, proj, playable)
+    for kind, polys in dressing.ground.items():
+        parts = [p for p in polys if not p.is_empty]
+        layers.areas[kind] = MultiPolygon([q for p in parts for q in polygons_of(p)]) if parts else MultiPolygon()
+    print(f"[dress] {time.time() - t2:.1f} s")
+    for n in dressing.notes:
+        print(f"  - {n}")
+
     i0, j0, i1, j1 = tile_range(area.bounds)
     terrain_meta = None
     if not args.skip_terrain:
@@ -180,7 +191,7 @@ def main() -> None:
         # playable area: the dog stays on the near side of the boundary streets.
         "streetBoundary": [round(c, 2) for xz in list(b.polygon.exterior.coords)[:-1] for c in xz],
     }
-    index = write_tiles(layers, playable, area, config.PUBLIC_MAP_DIR, meta)
+    index = write_tiles(layers, playable, area, config.PUBLIC_MAP_DIR, meta, dressing)
     sz = index["_sizes"]
     print(f"[tiles] {len(index['tiles'])} tiles of {TILE_SIZE:g} m -> {config.PUBLIC_MAP_DIR}  "
           f"total {sz['tilesRaw'] / 1024:.0f} KB raw, {sz['tilesGzip'] / 1024:.0f} KB gzipped; "

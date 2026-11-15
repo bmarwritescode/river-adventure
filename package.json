@@ -13,6 +13,7 @@
     "test:e2e": "playwright test",
     "dog:build": "tsx tools/dog/buildDogModel.ts",
     "perf": "tsx tools/perf/runPerf.ts",
+    "shots": "tsx tools/shots/shots.ts",
     "test:soak": "SOAK=1 playwright test tests/stability.spec.ts --grep @soak",
     "check": "npm run build && vitest run && playwright test tests/smoke.spec.ts --project=webkit --grep @quick",
     "prepare": "git config core.hooksPath .githooks"

@@ -141,3 +141,35 @@ test('running around town never ends up inside a building', async ({ page }) => 
   expect(inBuilding).toBe(false);
   expect(errors, errors.join('\n')).toEqual([]);
 });
+
+test('art block (Duval 51st → 53rd) is dressed, renders, and the dog can run through it', async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
+  const errors = collectErrors(page);
+  await page.goto('/?at=art-block');
+  await gameReady(page);
+  const m = await page.evaluate(() => window.__game!.map);
+  expect(m.dressedBuildings).toBeGreaterThan(30);
+  expect(m.dressedProps).toBeGreaterThan(150);
+  expect(m.errors).toBe(0);
+  expect((await page.evaluate(() => window.__game!.dog)).insideObstacle).toBe(false);
+
+  // Up the west sidewalk (follow camera: W = forward), then zig-zag through the yards.
+  let inBuilding = false;
+  const check = async () => {
+    if ((await page.evaluate(() => window.__game!.dog.insideObstacle))) inBuilding = true;
+  };
+  const p0 = (await page.evaluate(() => window.__game!.dog)).position;
+  await hold(page, ['ShiftLeft', 'KeyW'], 3000, check);
+  const p1 = (await page.evaluate(() => window.__game!.dog)).position;
+  const moved = Math.hypot(p1.x - p0.x, p1.z - p0.z);
+  await page.keyboard.press('KeyM'); // compass-relative controls
+  for (const keys of [['KeyD'], ['KeyW'], ['KeyA'], ['KeyW', 'KeyD'], ['KeyS']]) {
+    await hold(page, ['ShiftLeft', ...keys], 1200, check);
+  }
+  const s = await page.evaluate(() => ({ draws: window.__game!.drawCalls, tris: window.__game!.triangles }));
+  console.log(`[${testInfo.project.name}] art block: ${m.dressedBuildings} buildings, ${m.dressedProps} props; ` +
+    `sidewalk run ${moved.toFixed(1)} m; draw calls ${s.draws}, triangles ${(s.tris / 1000).toFixed(0)}k`);
+  expect(moved).toBeGreaterThan(15); // the sidewalk isn't blocked by props
+  expect(inBuilding).toBe(false);
+  expect(errors, errors.join('\n')).toEqual([]);
+});

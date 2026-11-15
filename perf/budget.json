@@ -6,7 +6,8 @@
     "(chromium-lowend = CPU throttled 4x, a rough stand-in). Draw calls / triangles leave headroom for Steps 5-7 art.",
     "Frame times are display-capped (8.3 ms at 120 Hz, 16.7 ms at 60 Hz); cpuMs is our own work per frame.",
     "p95FrameMs 20 (not 16.7): WebKit reports frame times in whole ms, so a steady 60 fps reads 16-18 ms.",
-    "tiles.finalize* = main-thread time to turn one built tile into meshes (incl. texture upload); must stay well under one 60 Hz frame. Measured 2-8 ms; noisy in Chrome."
+    "tiles.finalize* = main-thread time to turn one built tile into meshes (incl. texture upload); must stay well under one 60 Hz frame. Measured 2-8 ms; noisy in Chrome.",
+    "block = sprint through the fully dressed art block (Step 5): same limits as run."
   ],
   "*": {
     "load": {
@@ -52,6 +53,14 @@
     },
     "errors": {
       "count": 0
+    },
+    "block": {
+      "p95FrameMs": 20,
+      "hitches": 0,
+      "p95CpuMs": 6,
+      "maxDrawCalls": 150,
+      "maxTriangles": 600000,
+      "maxHeapMB": 250
     }
   },
   "chromium-lowend": {
@@ -78,6 +87,10 @@
     },
     "load": {
       "readyMs": 10000
+    },
+    "block": {
+      "p95FrameMs": 34,
+      "p95CpuMs": 16
     }
   }
 }
