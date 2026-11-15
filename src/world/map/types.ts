@@ -58,7 +58,10 @@ export interface MapIndex {
   terrain: TerrainInfo | null;
   tileSize: number;
   tileRange: { i0: number; j0: number; i1: number; j1: number };
+  /** Playable area: the dog stays inside this (near curb of the boundary streets). */
   boundary: FlatCoords;
+  /** The street-centerline boundary the playable area was derived from (reference only). */
+  streetBoundary?: FlatCoords;
   margin: FlatCoords;
   tiles: { i: number; j: number; bytes: number }[];
   attribution: string;

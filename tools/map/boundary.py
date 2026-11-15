@@ -229,3 +229,57 @@ def load_or_create_boundary(osm: OsmData, proj: Projector, regen: bool) -> Bound
         return load_boundary(proj)
     save_boundary(derive_boundary(osm), proj)
     return load_boundary(proj)  # round-trip so the pipeline always uses exactly what's in the file
+
+
+# --- Playable boundary ---------------------------------------------------------------------------
+
+# A road segment counts as "running along the boundary" if its midpoint is within this distance of the
+# boundary line and it is roughly parallel to it (so cross streets that merely end at the boundary don't).
+ALONG_DIST_M = 9.0
+ALONG_MAX_ANGLE_DEG = 25.0
+CURB_MARGIN_M = 0.3  # keep the dog this much further from the road surface
+
+
+def playable_boundary(osm: OsmData, boundary: Polygon) -> tuple[Polygon, dict]:
+    """The area the dog may walk: the street-centerline boundary minus the surfaces of the roads that run
+    along it, so the dog stays on the near side of every boundary street (sidewalks remain walkable)."""
+    from layers import ROAD_WIDTH, road_width  # local import: layers imports from this module's deps
+
+    ring = boundary.exterior
+    near = boundary.exterior.buffer(ALONG_DIST_M)
+    cos_max = math.cos(math.radians(ALONG_MAX_ANGLE_DEG))
+    cuts = []
+    names: dict[str, int] = {}
+    for w in osm.ways.values():
+        t = w.tags
+        hw = t.get("highway")
+        if hw not in ROAD_WIDTH or hw == "service" or len(w.coords) < 2:
+            continue
+        line = LineString(w.coords)
+        if not line.intersects(near):
+            continue
+        half = road_width(t) / 2 + CURB_MARGIN_M
+        for a, b in zip(w.coords, w.coords[1:]):
+            mx, mz = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+            mid = Point(mx, mz)
+            if mid.distance(ring) > ALONG_DIST_M:
+                continue
+            # Direction of the boundary near this segment.
+            s = ring.project(mid)
+            p0, p1 = ring.interpolate(max(0.0, s - 5)), ring.interpolate(min(ring.length, s + 5))
+            bx, bz = p1.x - p0.x, p1.y - p0.y
+            sx, sz = b[0] - a[0], b[1] - a[1]
+            nb, ns = math.hypot(bx, bz), math.hypot(sx, sz)
+            if nb < 1e-6 or ns < 1e-6 or abs(bx * sx + bz * sz) / (nb * ns) < cos_max:
+                continue
+            cuts.append(LineString([a, b]).buffer(half, quad_segs=4, cap_style="round"))
+            nm = t.get("name") or t.get("ref") or hw
+            names[nm] = names.get(nm, 0) + 1
+    play = boundary.difference(unary_union(cuts)) if cuts else boundary
+    parts = [p for p in getattr(play, "geoms", [play]) if isinstance(p, Polygon)]
+    origin = Point(0, 0)
+    main = next((p for p in parts if p.contains(origin)), max(parts, key=lambda p: p.area))
+    main = Polygon(main.exterior).simplify(0.3, preserve_topology=True)  # drop interior slivers/holes
+    info = {"streets": dict(sorted(names.items(), key=lambda kv: -kv[1])),
+            "area_km2": round(main.area / 1e6, 3), "removed_m2": round(boundary.area - main.area)}
+    return main, info

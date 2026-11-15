@@ -34,7 +34,7 @@ def _to_plot(coords):
     return [x for x, _ in coords], [-z for _, z in coords]
 
 
-def render_preview(osm: OsmData, b: Boundary, out_file: Path, stats: dict) -> None:
+def render_preview(osm: OsmData, b: Boundary, out_file: Path, stats: dict, playable: Polygon | None = None) -> None:
     boundary = b.polygon
     margin = boundary.buffer(config.MARGIN_M, join_style="mitre")
     minx, minz, maxx, maxz = margin.buffer(80).bounds
@@ -71,6 +71,9 @@ def render_preview(osm: OsmData, b: Boundary, out_file: Path, stats: dict) -> No
                             ec="#d23", lw=1.0, ls=(0, (4, 4)), zorder=5))
     ax.add_patch(MplPolygon(list(zip(*_to_plot(boundary.exterior.coords))), closed=True, fill=False,
                             ec="#d23", lw=2.6, zorder=6))
+    if playable is not None:  # where the dog can actually walk (near curb of the boundary streets)
+        ax.add_patch(MplPolygon(list(zip(*_to_plot(playable.exterior.coords))), closed=True, fill=False,
+                                ec="#0a8a3a", lw=1.4, zorder=7))
     for seg in b.connectors:  # synthetic stretches with no real street
         cx, cy = _to_plot(seg.coords)
         ax.plot(cx, cy, color="#1a9fff", lw=3.2, zorder=7, solid_capstyle="butt")
@@ -121,7 +124,7 @@ def render_preview(osm: OsmData, b: Boundary, out_file: Path, stats: dict) -> No
     ax.set_ylabel("north (m) = -z")
 
     title = (f"Hyde Park play area — boundary {boundary.area / 1e6:.2f} km² ({boundary.area / 2.59e6:.2f} sq mi), "
-             f"solid red = boundary, blue = synthetic connector, dashed = +{config.MARGIN_M:.0f} m margin")
+             f"red = boundary (street centerlines), green = playable edge (near curb), blue = synthetic connector, dashed = +{config.MARGIN_M:.0f} m margin")
     ax.set_title(title, fontsize=10)
     lines = [f"{k}: {v}" for k, v in stats.items()]
     ax.text(0.01, 0.01, "\n".join(lines), transform=ax.transAxes, fontsize=7.5, va="bottom", ha="left",

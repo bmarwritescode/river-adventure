@@ -5,8 +5,9 @@ import type { TriggerZoneDef } from '../world/triggers';
  * Add a spot by walking there and pressing P, then paste the snippet here.
  * These feed the teleport dropdown in the tuning panel and the `?at=<id>` URL parameter.
  *
- * Intersection coordinates come from the OSM nodes shared by both streets. Spots that sit on the
- * play-area boundary (which runs along street centerlines) are nudged ~10–15 m inside it.
+ * Intersection coordinates come from the OSM nodes shared by both streets. Spots on a boundary street
+ * (Guadalupe, 38th, 56th/Koenig, Airport, I-35) are moved ~6 m inside the playable edge (the near curb),
+ * since the dog can't stand on those streets. src/config/places.test.ts enforces this.
  */
 export interface Place {
   id: string;
@@ -19,20 +20,20 @@ export interface Place {
 
 export const PLACES: Place[] = [
   { id: 'origin', label: 'Origin: 45th & Duval', x: 0, z: 0, heading: -0.35 },
-  // Boundary corners (15 m inside the corner)
-  { id: 'nw-corner', label: 'NW corner: Guadalupe & Koenig/56th', x: 55.5, z: -1820.1 },
-  { id: 'ne-corner', label: 'NE corner: 56th & Airport', x: 1077.1, z: -1232.4 },
+  // Boundary corners (just inside the playable edge)
+  { id: 'nw-corner', label: 'NW corner: Guadalupe & Koenig/56th', x: 55.6, z: -1812.0 },
+  { id: 'ne-corner', label: 'NE corner: 56th & Airport', x: 1070.9, z: -1235.0 },
   { id: 'se-corner', label: 'SE corner: 38th & I-35', x: 432.1, z: 1412.0 },
-  { id: 'sw-corner', label: 'SW corner: 38th & Guadalupe', x: -1283.7, z: 479.7 },
+  { id: 'sw-corner', label: 'SW corner: 38th & Guadalupe', x: -1277.8, z: 480.4 },
   // Intersections
-  { id: '45th-guadalupe', label: '45th & Guadalupe', x: -799, z: -420 },
+  { id: '45th-guadalupe', label: '45th & Guadalupe', x: -793.8, z: -417.5 },
   { id: '45th-speedway', label: '45th & Speedway', x: -367.4, z: -179.3 },
   { id: '43rd-avenue-h', label: '43rd & Avenue H', x: -229.3, z: 216.4 },
   { id: '51st-duval', label: '51st & Duval', x: 441.3, z: -807.2 },
   { id: '45th-red-river', label: '45th & Red River', x: 483.2, z: 235.9 },
   { id: '41st-red-river', label: '41st & Red River', x: 222.1, z: 805.2 },
-  { id: '38th-duval', label: '38th & Duval', x: -490.7, z: 922.2 },
-  { id: '45th-airport', label: '45th & Airport', x: 823, z: 366 },
+  { id: '38th-duval', label: '38th & Duval', x: -486.1, z: 910.3 },
+  { id: '45th-airport', label: '45th & Airport', x: 820.7, z: 366.1 },
   // Parks
   { id: 'shipe-park', label: 'Shipe Park', x: -262, z: -46 },
 ];
@@ -62,5 +63,5 @@ export const TEST_TRIGGER_ZONES: TriggerZoneDef[] = [
     },
     tags: ['test'],
   },
-  { id: 'sparky-park', label: 'Sparky Pocket Park', shape: { kind: 'circle', x: -721, z: 884, radius: 25 }, tags: ['test'] },
+  { id: 'bruning-green', label: 'Bruning Green', shape: { kind: 'circle', x: 603, z: -853, radius: 15 }, tags: ['test'] },
 ];

@@ -26,7 +26,7 @@ from shapely.geometry import LineString, Point, Polygon
 from shapely.prepared import prep
 
 import config
-from boundary import load_or_create_boundary, load_or_create_origin
+from boundary import load_or_create_boundary, load_or_create_origin, playable_boundary
 from layers import extract_layers
 from osm_fetch import fetch_osm, osm_raw_meta
 from osm_parse import OsmData
@@ -141,8 +141,6 @@ def main() -> None:
     for n in dict.fromkeys(b.decisions):
         print(f"  - {n}")
 
-    render_preview(osm, b, config.OUT_DIR / "preview.png", stats)
-
     # --- 2B: layers -> tiles (+ terrain) -------------------------------------------------------
     area = b.polygon.buffer(config.MARGIN_M, join_style="mitre")
     t1 = time.time()
@@ -153,6 +151,11 @@ def main() -> None:
           + ", ".join(f"{k} {len(g.geoms)}" for k, g in layers.areas.items()) + f" ({time.time() - t1:.1f} s)")
     for n in layers.notes:
         print(f"  - {n}")
+
+    playable, pinfo = playable_boundary(osm, b.polygon)
+    print(f"[boundary] playable area {pinfo['area_km2']} km² (boundary-street surfaces removed: "
+          f"{pinfo['removed_m2']} m²) along: {', '.join(pinfo['streets'])}")
+    render_preview(osm, b, config.OUT_DIR / "preview.png", stats, playable)
 
     i0, j0, i1, j1 = tile_range(area.bounds)
     terrain_meta = None
@@ -173,8 +176,11 @@ def main() -> None:
         "origin": {"lat": origin.lat, "lon": origin.lon, "utmEasting": round(proj.e0, 3),
                    "utmNorthing": round(proj.n0, 3), "epsg": 32614},
         "terrain": terrain_meta,
+        # The street-centerline boundary (reference only). `boundary` (written by write_tiles) is the
+        # playable area: the dog stays on the near side of the boundary streets.
+        "streetBoundary": [round(c, 2) for xz in list(b.polygon.exterior.coords)[:-1] for c in xz],
     }
-    index = write_tiles(layers, b.polygon, area, config.PUBLIC_MAP_DIR, meta)
+    index = write_tiles(layers, playable, area, config.PUBLIC_MAP_DIR, meta)
     sz = index["_sizes"]
     print(f"[tiles] {len(index['tiles'])} tiles of {TILE_SIZE:g} m -> {config.PUBLIC_MAP_DIR}  "
           f"total {sz['tilesRaw'] / 1024:.0f} KB raw, {sz['tilesGzip'] / 1024:.0f} KB gzipped; "
