@@ -138,12 +138,14 @@ export class DogController {
     let x = startX, z = startZ;
     let collided = false;
     // If we start inside something (e.g. a tile just loaded around us), let push-out move us free.
-    const startedClear = !this.collision.overlapsCircle(x, z, r);
+    // Obstacles below the dog's feet (it jumped over a fence, it's standing on a car) don't block.
+    const feetY = this.position.y;
+    const startedClear = !this.collision.overlapsCircle(x, z, r, 0.02, feetY);
     for (let i = 0; i < subSteps; i++) {
-      const res = this.collision.resolveCircle(x + (fwd.x * dist) / subSteps, z + (fwd.z * dist) / subSteps, r);
+      const res = this.collision.resolveCircle(x + (fwd.x * dist) / subSteps, z + (fwd.z * dist) / subSteps, r, feetY);
       // In a gap narrower than the dog (or a sharp wedge between obstacles) push-outs can fight each
       // other; if we are still inside something, keep the last good position instead of jittering in.
-      if (startedClear && res.collided && this.collision.overlapsCircle(res.x, res.z, r)) {
+      if (startedClear && res.collided && this.collision.overlapsCircle(res.x, res.z, r, 0.02, feetY)) {
         collided = true;
         break;
       }
@@ -161,12 +163,16 @@ export class DogController {
       this.speed = Math.min(this.speed, Math.max(0, along));
     }
 
-    // --- Vertical: jump + gravity, glued to getGroundHeight when grounded -
-    const ground = getGroundHeight(x, z);
+    // --- Vertical: jump + gravity; ground = terrain or a walkable top under the dog (car, porch) ---
+    const ground = Math.max(getGroundHeight(x, z), this.collision.supportHeight(x, z, this.position.y));
     this.timeSinceLanded += dt;
     if (this.grounded && intent.jump && !locked && this.timeSinceLanded >= p.jump.cooldown) {
       this.velocity.y = Math.sqrt(2 * g * p.jump.height);
       this.grounded = false;
+    }
+    if (this.grounded && ground < this.position.y - TUNING.collision.stepDown) {
+      this.grounded = false; // walked off the edge of a car / porch: fall
+      this.velocity.y = 0;
     }
     if (this.grounded) {
       this.position.y = ground;

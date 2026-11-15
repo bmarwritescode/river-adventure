@@ -88,6 +88,10 @@ The owner is an experienced programmer but new to game dev. Explain game-dev-spe
 - All obstacle collision goes through **`CollisionWorld`** (`src/world/collision.ts`): dog = circle in XZ vs
   obstacle footprints (2D polygons, convex or concave, extruded to a height). Grid broadphase. Push-out resolution
   → sliding along walls. Also provides `raycast` (used by the camera). Test boxes today, OSM footprints later.
+  Each obstacle has a `solidTop` (world y the dog must clear; default = always solid) separate from its camera
+  `height`, and may be `walkable` (the dog can stand on it: car hoods/roofs, porch decks and steps, tables).
+  Collision ignores obstacles below the dog's feet (+ `stepUp`); `supportHeight` gives the ground on top of
+  walkables. So the dog jumps fences/hydrants/carts and onto cars; trunks, poles, buildings, walls stay solid.
   Build obstacle meshes from the same footprint (`extrudeFootprint`) so visuals and collision never drift.
 - **Trigger zones:** ONE module, `TriggerSystem` (`src/world/triggers.ts`): named circles/polygons in world XZ
   firing enter/exit events (dog center point, with exit hysteresis). Clue locations, the front door and future

@@ -61,7 +61,7 @@ export interface LandmarkInfo {
   pw: number;
 }
 
-export type FenceKind = 'picket' | 'chain' | 'iron' | 'cedar' | 'wood';
+export type FenceKind = 'picket' | 'chain' | 'iron' | 'cedar' | 'wood' | 'hogwire';
 
 export interface TileFence {
   t: FenceKind;

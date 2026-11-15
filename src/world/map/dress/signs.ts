@@ -256,7 +256,7 @@ export function buildSignMesh(labels: LabelRequest[], blades: Quad[], newCanvas:
     const rx = Math.cos(q.rot), rz = -Math.sin(q.rot); // local +X (text direction)
     const nx = Math.sin(q.rot), nz = Math.cos(q.rot); // local +Z (facing)
     const hw = q.width / 2, hh = q.height / 2;
-    const addFace = (sxn: number, off: number, n: number): void => {
+    const addFace = (sxn: number, off: number, n: number, mirrorImage = false): void => {
       const base = pos.length / 3;
       const cx = q.x + nx * off, cz = q.z + nz * off;
       // BL, BR, TR, TL as seen by the viewer of this face (sxn = +1 front, −1 back: mirrored X)
@@ -264,14 +264,15 @@ export function buildSignMesh(labels: LabelRequest[], blades: Quad[], newCanvas:
       for (const [a, b, u, v] of corners) {
         pos.push(cx + rx * a * sxn, q.y + b, cz + rz * a * sxn);
         nor.push(nx * n, 0, nz * n);
-        uv.push(u, v);
+        uv.push(mirrorImage ? u0 + u1 - u : u, v); // mirrored: swap the left/right texture columns
       }
       idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
     };
     const off = q.thickness ? q.thickness / 2 : 0.006;
     addFace(1, off, 1);
-    // Text reads correctly from both sides; art (a cut-out figure) is the same object seen from behind.
-    if (q.twoSided) addFace(q.art ? 1 : -1, -off, -1);
+    // Text reads correctly from both sides; art (a cut-out figure) is the same object seen from behind:
+    // wound for a viewer behind it, with the image mirrored so the pie stays on the drum's side.
+    if (q.twoSided) addFace(-1, -off, -1, q.art !== undefined);
   });
   const pixels = new Uint8Array(g.getImageData(0, 0, ATLAS_W, H).data.buffer);
   return {

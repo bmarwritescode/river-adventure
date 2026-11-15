@@ -330,7 +330,7 @@ export class Game {
           heading: d.heading,
           state: d.state,
           speed: d.groundSpeed,
-          insideObstacle: game.collision.overlapsCircle(d.position.x, d.position.z, d.profile.collisionRadius),
+          insideObstacle: game.collision.overlapsCircle(d.position.x, d.position.z, d.profile.collisionRadius, 0.02, d.position.y),
           insideBoundary: game.map.isInsideBoundary(d.position.x, d.position.z),
           visual: game.dogVisual.kind,
           clips: game.dogVisual.clipNames,

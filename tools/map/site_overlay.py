@@ -36,7 +36,7 @@ AREA_COLORS = {
     "sidewalk": (255, 200, 255, 60), "road": (60, 60, 255, 45),
 }
 FENCE_COLORS = {"wood": (255, 140, 0), "cedar": (255, 0, 255), "iron": (0, 0, 0), "picket": (255, 255, 255),
-                "chain": (0, 255, 255)}
+                "chain": (0, 255, 255), "hogwire": (180, 255, 60)}
 
 
 def place_xz(at: str) -> tuple[float, float, str]:

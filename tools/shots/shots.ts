@@ -84,6 +84,9 @@ const VIEWS: View[] = [
   // Hyde Park Animal Clinic (NW corner of Duval & 51st): tall privacy fence around its yard.
   { name: 'vet-corner', cam: cam({ x: 454.0, z: -811.0 }, 1.7, { x: 425.0, z: -846.0 }, 1.6), dog: dogAt(0.06, -6) },
   { name: 'hs-queen', cam: cam(HS.queenCam, 1.6, HS.queenLook, 5.6), dog: { ...HS.lotDog, heading: HS.southHeading } },
+  // 5104 Duval (next to the vet's yard), as in the listing photo: from the Duval sidewalk, looking west.
+  { name: 'duval-5104', cam: cam({ x: 466.0, z: -853.0 }, 1.6, { x: 446.0, z: -861.0 }, 1.6), dog: dogAt(0.06, -6) },
+  { name: 'hs-queen-back', cam: cam({ x: 586.0, z: -1021.0 }, 1.6, { x: 577.6, z: -1032.0 }, 5.6), dog: { ...HS.lotDog, heading: HS.southHeading } },
   { name: 'hs-sign', cam: cam(HS.signCam, 1.7, HS.signLook, 3.6), dog: { ...HS.lotDog, heading: HS.southHeading } },
   { name: 'hs-under', cam: cam(HS.underCam, 1.5, HS.underLook, 1.7), dog: { ...HS.underDog, heading: HS.southHeading } },
   { name: 'hs-turf', cam: cam(HS.turfCam, 0.8, HS.turfLook, 0.5), dog: { ...HS.turfDog, heading: HS.southHeading } },

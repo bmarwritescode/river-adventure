@@ -92,7 +92,8 @@ STREET_PARKING_CORNER = 6.5       # no parking this close to an intersection (pa
 STREET_PARKING_HYDRANT = 4.6      # 15 ft either side of a hydrant (Texas law)
 
 # Fences (kind -> (weight for random front-yard fences, height m)). "wood" = tall privacy fence.
-FENCE_KINDS = {"picket": (0.3, 0.95), "chain": (0.3, 1.2), "iron": (0.15, 1.1), "cedar": (0.25, 1.2)}
+FENCE_KINDS = {"picket": (0.22, 0.95), "chain": (0.25, 1.2), "iron": (0.12, 1.1), "cedar": (0.18, 1.2),
+               "hogwire": (0.23, 1.1)}  # hogwire: cedar frame + welded-wire panels (very Austin)
 PRIVACY_FENCE_HEIGHT = 1.85
 FRONT_FENCE_CHANCE = 0.38   # houses with a fenced front yard
 LOT_LINE_TOLERANCE = 4.0    # m: how far a straightened lot line may move from the nearest-building split
@@ -115,6 +116,8 @@ class Dressing:
     curbs: list[LineString] = field(default_factory=list)
     # fences: (kind, height, polyline)
     fences: list[tuple[str, float, LineString]] = field(default_factory=list)
+    # gates across driveways / walks (hand-made): exempt from the "no fence on a walk" safety net
+    gates: list[tuple[str, float, LineString]] = field(default_factory=list)
     # hand-made sites (landmarks.py): random trees / props stay out of these
     keep_out: list[Polygon] = field(default_factory=list)
     lots: dict[int, Polygon] = field(default_factory=dict)
@@ -362,6 +365,8 @@ def dress(osm: OsmData, layers: Layers, proj, playable: Polygon) -> Dressing:
         if start_f - end_f < 4:
             continue
         sides = [1, -1] if rng.random() < 0.5 else [-1, 1]
+        if info.get("drive_side") in (1, -1):  # set by a landmark (the real side)
+            sides = [info["drive_side"]]
         placed = None
         for side in sides:
             s_c = (smax + DRIVEWAY_SIDE_GAP + DRIVEWAY_WIDTH / 2) if side > 0 else (smin - DRIVEWAY_SIDE_GAP - DRIVEWAY_WIDTH / 2)
@@ -452,7 +457,19 @@ def dress(osm: OsmData, layers: Layers, proj, playable: Polygon) -> Dressing:
     local = area.buffer(60)
     _place_yard_fences(D, houses, D.lots, D.custom_lots, {b.osm_id for b in dressed}, front_of,
                        all_bldg.intersection(local.buffer(40)), drive_union, unary_union(D.ground["walk"] or [Polygon()]),
-                       unary_union([road, sidewalk]).intersection(local.buffer(40)), site, alleys, area.buffer(8))
+                       unary_union([road, sidewalk]).intersection(local.buffer(40)), site, alleys, area.buffer(8),
+                       D.ground["walk"])
+    # Safety net: no fence (generic or hand-made) may stand on a road, sidewalk or front walk.
+    paved = unary_union([road, sidewalk, unary_union(D.ground["walk"] or [Polygon()])]).intersection(local.buffer(40)).buffer(0.25)
+    kept, cut_len = [], 0.0
+    for kind, h, ln in D.fences:
+        rest = ln.difference(paved)
+        cut_len += ln.length - rest.length
+        for g in _lines_of(rest, 0.6):
+            kept.append((kind, h, g))
+    D.fences = kept + D.gates
+    if cut_len > 0.5:
+        D.notes.append(f"fences: trimmed {cut_len:.1f} m that stood on a road / sidewalk / walk")
     fence_zone = unary_union([ln.buffer(0.7) for _, _, ln in D.fences]) if D.fences else Polygon()
 
     # 5. Trees and shrubs ---------------------------------------------------------------------------
@@ -738,7 +755,8 @@ def _lines_of(geom, min_len: float = 0.8) -> list[LineString]:
 
 
 def _place_yard_fences(D: Dressing, houses, lots: dict[int, Polygon], skip_lots: set[int], dressed_ids: set[int],
-                       front_of: dict[int, tuple], buildings, drives, walks, street, site, alleys, region) -> None:
+                       front_of: dict[int, tuple], buildings, drives, walks, street, site, alleys, region,
+                       walk_list: list) -> None:
     """Fences along the approximate lot lines (compute_lots):
       - fenced front yards (picket / chain link / iron / cedar): the lot in front of the house, closed back
         to the house walls, with a gate at the walk and a gap at the driveway;
@@ -764,8 +782,14 @@ def _place_yard_fences(D: Dressing, houses, lots: dict[int, Polygon], skip_lots:
                 if min(ss) <= (smin + smax) / 2 <= max(ss):
                     s_lo, s_hi = max(min(ss), smin - 6.0), min(max(ss), smax + 6.0)
         half = Polygon([W(s_lo, fmax - 1.0), W(s_hi, fmax - 1.0), W(s_hi, fmax + 200), W(s_lo, fmax + 200)])
-        return lots[oid].intersection(half)
+        # Driveways and other buildings' walks stay outside the fenced yard (the fence runs along them).
+        mine = house_poly.get(oid)
+        others_w = unary_union([w for w in walk_list if mine is None or w.distance(mine) > 1.0] or [Polygon()])
+        z = lots[oid].intersection(half).difference(drives.buffer(0.35)).difference(others_w.buffer(0.35))
+        parts = [q for q in polygons_of(z) if q.area > 2]
+        return max(parts, key=lambda q: q.area) if parts else Polygon()
 
+    house_poly = {b.osm_id: b.poly for b, _ in houses}
     zones = {oid: front_zone(oid) for oid in lots}
     blocked = unary_union([buildings.buffer(0.3), drives.buffer(0.3), site.buffer(0.5)])
 
@@ -785,13 +809,14 @@ def _place_yard_fences(D: Dressing, houses, lots: dict[int, Polygon], skip_lots:
         if b.osm_id not in lots or b.osm_id in skip_lots:
             continue
         rng = random.Random(b.osm_id * 17 + 3)
-        if rng.random() >= FRONT_FENCE_CHANCE:
+        forced = info.get("front_fence")  # set by a landmark (the real fence)
+        if rng.random() >= FRONT_FENCE_CHANCE and not forced:
             continue
         z = zones[b.osm_id]
         # Only yards that reach the street (not back-lot cottages behind another house).
         if z.is_empty or z.distance(street) > 1.0:
             continue
-        kind = rng.choices(names, weights)[0]
+        kind = forced or rng.choices(names, weights)[0]
         ring = unary_union([LineString(q.exterior.coords) for q in polygons_of(z)])
         add(kind, FENCE_KINDS[kind][1], ring, unary_union([b.poly.buffer(0.05), blocked, walks.buffer(0.05)]))
 

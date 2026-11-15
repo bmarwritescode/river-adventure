@@ -10,10 +10,11 @@ import { jitter, rgb, shade, type MeshBuilder, type RGB } from './MeshBuilder';
  *   picket  white pickets with pointed tops and two rails
  *   chain   galvanized chain link: pipe posts, top rail, diamond wire lattice
  *   iron    black metal bars between two rails
+ *   hogwire cedar posts, top rail and bottom board framing welded-wire panels
  * Collision: one thin box per segment that blocks the dog but not the camera (height 0).
  */
 
-const POST_SPACING: Record<TileFence['t'], number> = { wood: 2.4, cedar: 2.4, picket: 2.4, chain: 3.0, iron: 2.0 };
+const POST_SPACING: Record<TileFence['t'], number> = { wood: 2.4, cedar: 2.4, picket: 2.4, chain: 3.0, iron: 2.0, hogwire: 2.4 };
 const COLLIDE_HALF_WIDTH = 0.12;
 
 type V3 = [number, number, number];
@@ -57,6 +58,7 @@ export function buildFences(ctx: DressContext, fences: TileFence[] | undefined):
       ctx.obstacles.push({
         ring: [ax + nx * w, az + nz * w, bx + nx * w, bz + nz * w, bx - nx * w, bz - nz * w, ax - nx * w, az - nz * w],
         base: Math.min(g(ax, az), g(bx, bz)) - 0.3, height: 0,
+        top: Math.max(g(ax, az), g(bx, bz)) + h, // jump over it (not onto it)
       });
       const panels = Math.max(1, Math.round(L / POST_SPACING[f.t]));
       const pl = L / panels;
@@ -68,6 +70,7 @@ export function buildFences(ctx: DressContext, fences: TileFence[] | undefined):
         const post = (x: number, z: number, y: number): void => {
           if (f.t === 'chain') mb.cylinder(x, y - 0.2, z, 0.035, x, y + h + 0.04, z, 0.035, 5, chain, chain);
           else if (f.t === 'iron') mb.box(x, y - 0.2, z, 0.06, y + h + 0.06, 0.06, iron);
+          else if (f.t === 'hogwire') mb.box(x, y - 0.2, z, 0.1, y + h + 0.04, 0.1, shade(cedar, 0.85));
           else if (f.t === 'picket') mb.box(x, y - 0.2, z, 0.1, y + h + 0.06, 0.1, picket, 0, { top: shade(picket, 1.04) });
           else mb.box(x, y - 0.2, z, 0.11, y + h + 0.03, 0.11, shade(f.t === 'cedar' ? cedar : woods[0]!, 0.8));
         };
@@ -132,6 +135,21 @@ export function buildFences(ctx: DressContext, fences: TileFence[] | undefined):
                   mb.face([[a[0], a[1] - hw * 2, a[2]], [b[0], b[1] - hw * 2, b[2]], [b[0], b[1] + hw * 2, b[2]], [a[0], a[1] + hw * 2, a[2]]], wire, [nx * s, 0, nz * s]);
                 }
               }
+            }
+            break;
+          }
+          case 'hogwire': {
+            const wood = shade(cedar, 0.95), wire = rgb(S.fenceChain);
+            rail(mb, x0, z0, y0, x1, z1, y1, h - 0.1, h, nx, nz, 0.09, wood);
+            rail(mb, x0, z0, y0, x1, z1, y1, 0.0, 0.14, nx, nz, 0.05, shade(wood, 0.9));
+            const hw2 = 0.007;
+            for (let y = 0.25; y < h - 0.1; y += 0.15) {
+              sheet(mb, x0, z0, y0, x1, z1, y1, y - hw2, y + hw2, nx, nz, 0.006, wire); // horizontal wires
+            }
+            const n = Math.max(1, Math.round(pl / 0.15));
+            for (let j = 1; j < n; j++) {
+              const [cx, cz, cy] = at((j / n) * pl);
+              sheet(mb, cx - tx * hw2, cz - tz * hw2, cy, cx + tx * hw2, cz + tz * hw2, cy, 0.14, h - 0.1, nx, nz, 0.006, wire);
             }
             break;
           }

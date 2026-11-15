@@ -174,21 +174,28 @@ function cart(ctx: DressContext, color: RGB): void {
  * across the width (hood, cabin base, trunk); greenhouse = a narrower frustum (tumblehome) with glass
  * sides and a painted roof and pillars; dark tires with small silver hubs. Front = local −Z.
  */
-function car(ctx: DressContext, variant: number): void {
-  const mb = ctx.mb, S = ctx.style;
-  const paint = rgb(S.cars[variant % S.cars.length]!);
-  const glass = rgb(S.carGlass), glassTop = shade(glass, 1.45), tire = rgb(S.tire), hub = rgb('#b9bdc0');
-  const trimC = shade(paint, 0.55), bumper = rgb('#3a3b3d');
+/** Car dimensions by variant (shared by the model and its collision). Front = local −Z. */
+export function carDims(variant: number) {
   const type = variant % 3; // 0 sedan, 1 SUV, 2 pickup
   const W = type === 1 ? 1.9 : 1.82;
   const L = type === 0 ? 4.7 : type === 1 ? 4.8 : 5.5;
-  const hl = L / 2, hw = W / 2;
-  const sill = 0.34;
+  const hl = L / 2;
   const belt = type === 0 ? 0.9 : 1.08;
   const roofY = type === 0 ? 1.44 : type === 1 ? 1.78 : 1.8;
-  // Side profile (z, y), front (−z) to back, convex: bumper, hood, cowl, deck/bed rail, tail.
   const cf = type === 2 ? -hl + 1.55 : -hl + (type === 0 ? 1.5 : 1.25); // windshield base
   const cb = type === 2 ? -hl + 3.05 : hl - (type === 0 ? 1.0 : 0.3);   // rear glass base
+  const rf = cf + (type === 0 ? 0.8 : 0.5), rb = type === 2 ? cb - 0.08 : cb - (type === 0 ? 0.6 : 0.12);
+  return { type, W, L, hl, hw: W / 2, belt, roofY, cf, cb, rf, rb };
+}
+
+function car(ctx: DressContext, variant: number): void {
+  const mb = ctx.mb, S = ctx.style;
+  const paint = rgb(S.cars[variant % S.cars.length]!);
+  const glass = rgb(S.carGlass), glassTop = shade(glass, 1.45), tire = rgb(S.tire), hub = rgb('#9a9ea1');
+  const trimC = shade(paint, 0.55), bumper = rgb('#3a3b3d');
+  const { type, W, hl, hw, belt, roofY, cf, cb, rf, rb } = carDims(variant);
+  const sill = 0.34;
+  // Side profile (z, y), front (−z) to back, convex: bumper, hood, cowl, deck/bed rail, tail.
   const prof: [number, number][] = [
     [-hl, sill], [-hl, belt - 0.26], [-hl + 0.22, belt - 0.08], [cf, belt], [type === 2 ? hl - 0.05 : cb, belt],
     [hl - (type === 0 ? 0.12 : 0.05), belt - 0.06], [hl, belt - 0.25], [hl, sill],
@@ -214,7 +221,6 @@ function car(ctx: DressContext, variant: number): void {
   mb.box(0, sill - 0.02, -hl - 0.04, W - 0.06, sill + 0.2, 0.1, bumper);
   mb.box(0, sill - 0.02, hl + 0.04, W - 0.06, sill + 0.2, 0.1, bumper);
   // Greenhouse: frustum from the belt to the roof, inset for tumblehome.
-  const rf = cf + (type === 0 ? 0.8 : 0.5), rb = type === 2 ? cb - 0.08 : cb - (type === 0 ? 0.6 : 0.12);
   const iw = hw - 0.06, rw = hw - (type === 1 ? 0.14 : 0.22);
   const V = (x: number, y: number, z: number): [number, number, number] => [x, y, z];
   mb.face([V(-iw, belt, cf), V(iw, belt, cf), V(rw, roofY, rf), V(-rw, roofY, rf)], glass, [0, 0.6, -1], [glass, glass, glassTop, glassTop]); // windshield
@@ -320,14 +326,26 @@ export function buildProps(ctx: DressContext, props: Record<string, number[]>, s
       }
       count++;
       // Collision (dog only).
+      // Tops: the dog jumps over hydrants and carts, and onto cars (hood, then roof). Trunks, poles and
+      // sign posts are always solid.
       let ring: number[] | null = null;
+      let top = Infinity;
       if (kind in TRUNK_R) ring = circleRing(x, z, TRUNK_R[kind]! * sc, 8);
       else if (kind === 'pole' || kind === 'signal') ring = circleRing(x, z, 0.2, 6);
-      else if (kind === 'hydrant') ring = circleRing(x, z, 0.22, 6);
-      else if (kind === 'car') ring = rectRing(x, z, 0.92, (variant % 3 === 2 ? 2.7 : variant % 3 === 1 ? 2.4 : 2.3), rot);
-      else if (kind.startsWith('cart')) ring = rectRing(x, z, 0.32, 0.4, rot);
+      else if (kind === 'hydrant') { ring = circleRing(x, z, 0.22, 6); top = y + 0.8; }
+      else if (kind === 'car') {
+        const c = carDims(variant);
+        ctx.obstacles.push({ ring: rectRing(x, z, c.hw + 0.02, c.hl + 0.05, rot), base: y - 0.3, height: 0, top: y + c.belt, walk: true });
+        // Cabin: from the windshield base to the rear glass, centred along local z.
+        const zc = (c.cf + c.cb) / 2, cs = Math.cos(rot), sn = Math.sin(rot);
+        ctx.obstacles.push({
+          ring: rectRing(x + sn * zc, z + cs * zc, c.hw - 0.15, (c.cb - c.cf) / 2, rot), base: y - 0.3, height: 0,
+          top: y + c.roofY, walk: true,
+        });
+      }
+      else if (kind.startsWith('cart')) { ring = rectRing(x, z, 0.32, 0.4, rot); top = y + 1.07; }
       else if (kind === 'stop') ring = circleRing(x, z, 0.06, 4);
-      if (ring) ctx.obstacles.push({ ring, base: y - 0.3, height: 0 });
+      if (ring) ctx.obstacles.push({ ring, base: y - 0.3, height: 0, top });
     }
   }
   for (const s of signs ?? []) {

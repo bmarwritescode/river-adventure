@@ -25,6 +25,9 @@ export interface Footprints {
   /** Prism height and bottom y per building (for camera raycasts). */
   heights: Float32Array;
   bases: Float32Array;
+  /** World y the dog must clear to pass over (Infinity = always solid), and 1 = it can stand on top. */
+  tops: Float32Array;
+  walk: Uint8Array;
 }
 
 const heightAt = (hm: Heightmap | null, x: number, z: number): number => (hm ? hm.sample(x, z) : 0);
@@ -170,6 +173,7 @@ export function buildBuildings(
     fpHeights.push(top - base);
     fpBases.push(base);
   });
+  const n = fpHeights.length;
 
   return {
     mesh: {
@@ -183,6 +187,8 @@ export function buildBuildings(
       offsets: new Uint32Array(fpOffsets),
       heights: new Float32Array(fpHeights),
       bases: new Float32Array(fpBases),
+      tops: new Float32Array(n).fill(Infinity),
+      walk: new Uint8Array(n),
     },
   };
 }

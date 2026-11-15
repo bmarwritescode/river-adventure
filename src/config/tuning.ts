@@ -19,6 +19,10 @@ export const TUNING = {
     iterations: 3,
     /** Broadphase grid cell size, meters. */
     gridCellSize: 16,
+    /** The dog walks over obstacle tops up to this far above its feet (curbs, a car hood edge it's on), m. */
+    stepUp: 0.2,
+    /** Walking off something higher than this drops the dog into a fall instead of snapping down, m. */
+    stepDown: 0.25,
   },
   map: {
     /** Tiles within this distance of the dog are loaded, meters. */

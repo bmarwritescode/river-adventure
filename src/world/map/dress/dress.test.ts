@@ -155,12 +155,13 @@ describe('house frame far from the origin', () => {
 
 describe('fences', () => {
   const base: TileData = { v: 3, i: 0, j: 0, buildings: [], streets: [], trees: [], areas: {} };
-  for (const t of ['wood', 'cedar', 'picket', 'chain', 'iron'] as const) {
+  for (const t of ['wood', 'cedar', 'picket', 'chain', 'iron', 'hogwire'] as const) {
     it(`${t}: finite geometry, one dog-only obstacle per segment, low-poly`, () => {
       const d = buildDressing({ ...base, fences: [{ t, h: t === 'wood' ? 1.85 : 1.1, p: [0, 0, 10, 0, 10, 6] }] }, null, MAP_STYLE, fakeCanvas)!;
       for (const v of d.structures.positions) expect(Number.isFinite(v)).toBe(true);
       expect(d.footprints.offsets.length - 1).toBe(2);
       for (const h of d.footprints.heights) expect(h).toBe(0); // blocks the dog, not the camera
+      for (const top of d.footprints.tops) expect(top).toBeCloseTo(t === 'wood' ? 1.85 : 1.1, 5); // ...who can jump it
       expect(d.counts.triangles / 16).toBeLessThan(60); // triangles per meter of fence
     });
   }

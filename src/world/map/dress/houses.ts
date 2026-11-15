@@ -18,6 +18,10 @@ export interface Obstacle {
   ring: number[]; // flat x, z
   base: number;
   height: number; // 0 = blocks the dog only, not the camera
+  /** World y the dog must clear to jump over it (default: always solid). */
+  top?: number;
+  /** The dog can land and stand on top. */
+  walk?: boolean;
 }
 
 export interface LabelRequest {
@@ -550,9 +554,14 @@ function buildPorch(ctx: DressContext, doorPt: [number, number], f: P2, porch: [
     poly(mb, [y3(-pw / 2, pd - 0.02, postTop - 0.3), y3(pw / 2, pd - 0.02, postTop - 0.3), y3(pw / 2, pd - 0.02, postTop), y3(-pw / 2, pd - 0.02, postTop)], trim, fwd);
   }
 
-  // Collision: deck + steps (blocks the dog, not the camera).
-  const a = W(-pw / 2, -0.05), b = W(pw / 2, -0.05), c = W(pw / 2, pd + 0.15 + nSteps * 0.3), e = W(-pw / 2, pd + 0.15 + nSteps * 0.3);
-  ctx.obstacles.push({ ring: [...a, ...b, ...c, ...e], base: gAvg - 0.3, height: 0 });
+  // Collision: the deck and each step are surfaces the dog can walk up (each riser < stepUp) and
+  // stand on; they block the dog but not the camera.
+  const rect = (a0: number, a1: number, b0: number, b1: number): number[] => [...W(a0, b0), ...W(a1, b0), ...W(a1, b1), ...W(a0, b1)];
+  ctx.obstacles.push({ ring: rect(-pw / 2, pw / 2, -0.05, pd), base: gAvg - 0.3, height: 0, top: deckY, walk: true });
+  for (let i = 0; i < nSteps; i++) {
+    const topI = deckY - (i + 1) * (stepsH / (nSteps + 1));
+    ctx.obstacles.push({ ring: rect(-0.7, 0.7, pd + i * 0.3, pd + 0.15 + (i + 1) * 0.3), base: gAvg - 0.3, height: 0, top: topI, walk: true });
+  }
 }
 
 /** Mix helper re-exported for props. */

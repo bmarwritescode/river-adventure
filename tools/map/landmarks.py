@@ -193,7 +193,7 @@ def home_slice(D: Dressing, b: Building, road, sidewalk) -> None:
 
 VET_ID = 381764304
 VET_FENCE_HEIGHT = 2.1
-VET_YARD_GAP = 1.5              # m between the yard fence and the house north of the yard
+VET_YARD_GAP = 5.2              # m: the neighbor's gravel driveway runs between its house and the yard
 
 
 def _street_dir(streets, name_part: str, near: tuple[float, float]) -> tuple[float, float] | None:
@@ -273,6 +273,31 @@ def vet_clinic(D: Dressing, b: Building, streets, road, sidewalk, buildings) -> 
     D.notes.append(f"landmark: vet clinic fence ({fence.length:.0f} m in {n} pieces)")
 
 
+# --- 5104 Duval: the house next to the vet's yard -------------------------------------------------------
+#
+# 1938 bungalow, from the 2025 listing photos: charcoal siding, white trim, aqua door, front gable with
+# a small gabled porch; front yard closed by a cedar hog-wire fence with a gate at the flagstone walk;
+# gravel driveway on the south side (toward the vet) up to a tall horizontal-cedar double gate.
+
+HOUSE_5104_ID = 381763883
+
+
+def house_5104(D: Dressing, b: Building, toward: Point) -> None:
+    info = b.dress  # type: ignore[attr-defined]
+    if "_front" not in info:
+        return
+    fx, fz, sx, sz, smin, smax, fmin, fmax, fw = info["_front"]
+    side = 1 if (toward.x * sx + toward.y * sz) > (smin + smax) / 2 else -1  # the vet's side
+    info.update({"wall": "#4b5053", "trim": "#f1efe8", "doorColor": "#9fd6d0", "roof": "gable",
+                 "roofColor": "#4d4b4a", "front_fence": "hogwire", "drive_side": side})
+    # Driveway gate: tall horizontal cedar across the drive, ~5.5 m behind the front wall.
+    f_gate = fmax - 5.5
+    s0 = smax if side > 0 else smin
+    W = lambda s, f: (sx * s + fx * f, sz * s + fz * f)  # noqa: E731
+    D.gates.append(("cedar", 1.9, LineString([W(s0 + side * 0.05, f_gate), W(s0 + side * 4.3, f_gate)])))
+    D.notes.append("landmark: 5104 Duval (hog-wire front yard, driveway gate)")
+
+
 def apply(D: Dressing, dressed: list[Building], layers, road, sidewalk, playable) -> None:
     by_id = {b.osm_id: b for b in dressed if getattr(b, "dress", None)}
     near = unary_union([b.poly for b in dressed]).envelope.buffer(120)
@@ -286,3 +311,5 @@ def apply(D: Dressing, dressed: list[Building], layers, road, sidewalk, playable
         if not getattr(vet, "dress", None):
             vet.dress = {}  # type: ignore[attr-defined]
         vet_clinic(D, vet, layers.streets, road, sidewalk, layers.buildings)
+    if HOUSE_5104_ID in by_id and vet is not None:
+        house_5104(D, by_id[HOUSE_5104_ID], vet.poly.centroid)

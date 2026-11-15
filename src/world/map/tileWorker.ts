@@ -93,7 +93,8 @@ ctx.onmessage = async (ev: MessageEvent<WorkerRequest>) => {
       if (m.uvs) transfer.push(m.uvs.buffer);
       if (m.colors) transfer.push(m.colors.buffer);
     }
-    transfer.push(footprints.coords.buffer, footprints.offsets.buffer, footprints.heights.buffer, footprints.bases.buffer);
+    transfer.push(footprints.coords.buffer, footprints.offsets.buffer, footprints.heights.buffer, footprints.bases.buffer,
+      footprints.tops.buffer, footprints.walk.buffer);
     ctx.postMessage({ type: 'built', tile } satisfies WorkerResponse, transfer);
   } catch (err) {
     ctx.postMessage({ type: 'error', key: msg.key, message: String(err) } satisfies WorkerResponse);

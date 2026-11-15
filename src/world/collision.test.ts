@@ -117,3 +117,63 @@ describe('DogController against real-world-like obstacles', () => {
     expect(Math.hypot(dog.position.x - before.x, dog.position.z - before.z)).toBeGreaterThan(2);
   });
 });
+
+describe('jumping over and onto obstacles', () => {
+  const fence = (w: CollisionWorld): void =>
+    w.add({ id: 'fence', footprint: rectFootprint(0, -6, 12, 0.24), height: 0, solidTop: 1.2 }); // E-W fence at z = -6
+  const steps = (w: CollisionWorld, jumpAt: number | null, frames = 150) => {
+    const dog = new DogController(MAIN_DOG, w);
+    dog.teleport(0, 0, 0); // facing north (−z), toward the fence
+    let maxY = 0, insideBelowTop = false;
+    for (let i = 0; i < frames; i++) {
+      const jump = jumpAt !== null && i === jumpAt;
+      dog.step(1 / 60, { moveX: 0, moveZ: -1, pace: 'run', sniff: false, jump, sit: false, playBow: false });
+      maxY = Math.max(maxY, dog.position.y);
+      if (w.overlapsCircle(dog.position.x, dog.position.z, MAIN_DOG.collisionRadius, 0.02, dog.position.y)) insideBelowTop = true;
+    }
+    return { dog, maxY, insideBelowTop };
+  };
+
+  it('obstacles below the feet do not block; supportHeight finds walkable tops within a step', () => {
+    const w = new CollisionWorld();
+    fence(w);
+    expect(w.resolveCircle(0, -6, 0.28, 0).collided).toBe(true);
+    expect(w.resolveCircle(0, -6, 0.28, 1.3).collided).toBe(false); // feet above the fence top
+    w.add({ id: 'hood', footprint: rectFootprint(0, 5, 2, 4), height: 0, solidTop: 0.9, walkable: true });
+    expect(w.supportHeight(0, 5, 0.85)).toBeCloseTo(0.9);
+    expect(w.supportHeight(0, 5, 0)).toBe(-Infinity); // too high to step onto from the ground
+    expect(w.supportHeight(0, 0, 0.9)).toBe(-Infinity); // not over it
+  });
+
+  it('the dog is stopped by a fence on the ground, but clears it with a jump', () => {
+    const w = new CollisionWorld();
+    fence(w);
+    const blocked = steps(w, null);
+    expect(blocked.dog.position.z).toBeGreaterThan(-6);
+    const jumped = steps(w, 30); // jump ~1.5 m before the fence at running speed
+    expect(jumped.dog.position.z).toBeLessThan(-7);
+    expect(jumped.insideBelowTop).toBe(false);
+  });
+
+  it('jumps onto a car hood, stands on it, and drops off the far side', () => {
+    const w = new CollisionWorld();
+    w.add({ id: 'car', footprint: rectFootprint(0, -9, 3, 6), height: 0, solidTop: 0.9, walkable: true }); // z -12..-6
+    const dog = new DogController(MAIN_DOG, w);
+    dog.teleport(0, 0, 0);
+    const go = (frames: number, jumpAt = -1, pace: 'walk' | 'run' = 'run'): void => {
+      for (let i = 0; i < frames; i++) dog.step(1 / 60, { moveX: 0, moveZ: -1, pace, sniff: false, jump: i === jumpAt, sit: false, playBow: false });
+    };
+    while (dog.position.z > -3.2) go(1); // run up...
+    go(1, 0); // ...and jump at the car (~2.8 m out)
+    let onTop = false;
+    for (let i = 0; i < 60 && !onTop; i++) {
+      go(1);
+      if (dog.grounded && dog.position.z < -6.2 && dog.position.z > -11.8) onTop = Math.abs(dog.position.y - 0.9) < 1e-6;
+    }
+    expect(onTop).toBe(true);
+    go(120, -1, 'walk'); // keep going: off the far end
+    expect(dog.position.z).toBeLessThan(-12);
+    expect(dog.position.y).toBeCloseTo(0);
+    expect(dog.grounded).toBe(true);
+  });
+});

@@ -34,11 +34,15 @@ export function buildDressing(data: TileData, hm: Heightmap | null, style: MapSt
   const fpOffsets: number[] = [0];
   const fpHeights: number[] = [];
   const fpBases: number[] = [];
-  const addFootprint = (ring: number[], base: number, height: number): void => {
+  const fpTops: number[] = [];
+  const fpWalk: number[] = [];
+  const addFootprint = (ring: number[], base: number, height: number, top = Infinity, walk = false): void => {
     for (const c of ring) fpCoords.push(c);
     fpOffsets.push(fpCoords.length / 2);
     fpHeights.push(height);
     fpBases.push(base);
+    fpTops.push(top);
+    fpWalk.push(walk ? 1 : 0);
   };
 
   for (const b of dressedBuildings) {
@@ -67,7 +71,7 @@ export function buildDressing(data: TileData, hm: Heightmap | null, style: MapSt
     });
   }
   if (data.curbs) buildCurbs(ctx, data.curbs);
-  for (const o of ctx.obstacles) addFootprint(o.ring, o.base, o.height);
+  for (const o of ctx.obstacles) addFootprint(o.ring, o.base, o.height, o.top, o.walk);
 
   const structures = mb.build();
   // Decals: lane markings + overhead wires (wires don't cast shadows: thin shadows alias badly).
@@ -82,6 +86,7 @@ export function buildDressing(data: TileData, hm: Heightmap | null, style: MapSt
     footprints: {
       coords: new Float32Array(fpCoords), offsets: new Uint32Array(fpOffsets),
       heights: new Float32Array(fpHeights), bases: new Float32Array(fpBases),
+      tops: new Float32Array(fpTops), walk: new Uint8Array(fpWalk),
     },
     counts: {
       buildings: dressedBuildings.length, props, landmarks: dressedBuildings.filter((b) => b.d!.lm).length,
@@ -140,5 +145,9 @@ export function mergeFootprints(a: Footprints, b: Footprints): Footprints {
   heights.set(a.heights); heights.set(b.heights, a.heights.length);
   const bases = new Float32Array(a.bases.length + b.bases.length);
   bases.set(a.bases); bases.set(b.bases, a.bases.length);
-  return { coords, offsets, heights, bases };
+  const tops = new Float32Array(a.tops.length + b.tops.length);
+  tops.set(a.tops); tops.set(b.tops, a.tops.length);
+  const walk = new Uint8Array(a.walk.length + b.walk.length);
+  walk.set(a.walk); walk.set(b.walk, a.walk.length);
+  return { coords, offsets, heights, bases, tops, walk };
 }

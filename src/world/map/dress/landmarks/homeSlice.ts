@@ -74,14 +74,15 @@ export function buildHomeSlice(ctx: DressContext, b: TileBuilding, lm: LandmarkI
   /** Panel on the west wall plane (a = −off), from b0..b1. */
   const west = (b0: number, b1: number, y0: number, y1: number, off: number, c: RGB, cTop?: RGB): void =>
     mb.face([P(-off, b0, y0), P(-off, b1, y0), P(-off, b1, y1), P(-off, b0, y1)], c, Wd, cTop ? [c, c, cTop, cTop] : undefined);
-  const block = (a: number, bb: number, rad: number): void => {
+  /** Collision (dog only). `top` = height above grade the dog can jump over / onto (default: solid). */
+  const block = (a: number, bb: number, rad: number, top = Infinity, walk = false): void => {
     const [x, z] = W(a, bb);
     const out: number[] = [];
     for (let i = 0; i < 8; i++) { const t = (i / 8) * Math.PI * 2; out.push(x + Math.cos(t) * rad, z + Math.sin(t) * rad); }
-    ctx.obstacles.push({ ring: out, base: G - 0.3, height: 0 });
+    ctx.obstacles.push({ ring: out, base: G - 0.3, height: 0, top: G + top, walk });
   };
-  const blockRect = (a0: number, a1: number, b0: number, b1: number): void => {
-    ctx.obstacles.push({ ring: [...W(a0, b0), ...W(a1, b0), ...W(a1, b1), ...W(a0, b1)], base: G - 0.3, height: 0 });
+  const blockRect = (a0: number, a1: number, b0: number, b1: number, top = Infinity, walk = false): void => {
+    ctx.obstacles.push({ ring: [...W(a0, b0), ...W(a1, b0), ...W(a1, b1), ...W(a0, b1)], base: G - 0.3, height: 0, top: G + top, walk });
   };
 
   const brick = rgb(H.brick), brickDark = rgb(H.brickDark), mortar = rgb(H.mortar);
@@ -268,7 +269,7 @@ export function buildHomeSlice(ctx: DressContext, b: TileBuilding, lm: LandmarkI
   });
   box((br.a0 + br.a1) / 2 - 0.06, bMid, 1.0, 1.05, br.a1 - br.a0 + 0.3, len + 0.15, steel, { top: shade(steel, 1.08) });
   box(-0.25, bMid, 0, 2.1, 0.4, len, rgb('#3e4a3e'), { top: steel }); // back bar shelving (green, as in the photo)
-  blockRect(br.a0 - 0.05, br.a1, br.b0, br.b1);
+  blockRect(br.a0 - 0.05, br.a1, br.b0, br.b1, 1.05, true); // the dog can hop up on the bar (sorry)
   const chairs = H.chairs.map(rgb);
   let ci = 0;
   for (let bb = bLo + 0.45; bb < bHi - 0.3; bb += 0.75) {
@@ -340,7 +341,7 @@ export function buildHomeSlice(ctx: DressContext, b: TileBuilding, lm: LandmarkI
   for (const [a, bb, rad, h] of HOME_SLICE.turfMounds) {
     const [x, z] = W(a, bb);
     mb.blob(x, G - h * 0.35, z, rad, h * 1.35, rad, turf, r, 0.08, 0.85);
-    block(a, bb, rad * 0.8);
+    block(a, bb, rad * 0.8, h, true); // stand on top of the hill
   }
   const tn = HOME_SLICE.tunnel;
   const segs = 9;
@@ -358,8 +359,8 @@ export function buildHomeSlice(ctx: DressContext, b: TileBuilding, lm: LandmarkI
       mb.face([q(t0, tn.r - 0.12), q(t1, tn.r - 0.12), q(t1, tn.r), q(t0, tn.r)], shade(turf, 1.1), bb === tn.b0 ? N : S3);
     }
   }
-  blockRect(tn.a - tn.r - 0.05, tn.a - tn.r + 0.1, tn.b0, tn.b1);
-  blockRect(tn.a + tn.r - 0.1, tn.a + tn.r + 0.05, tn.b0, tn.b1);
+  blockRect(tn.a - tn.r - 0.05, tn.a - tn.r + 0.1, tn.b0, tn.b1, tn.r);
+  blockRect(tn.a + tn.r - 0.1, tn.a + tn.r + 0.05, tn.b0, tn.b1, tn.r);
 
   // --- Helpers that close over the frame ------------------------------------------------------------
   function awning(a0: number, a1: number, style: 'striped' | 'red'): void {
@@ -470,6 +471,6 @@ export function buildHomeSlice(ctx: DressContext, b: TileBuilding, lm: LandmarkI
         box(a + s * (wa / 2 + 0.28), bb, 0, 0.4, 0.06, lb - 0.3, frame);
       }
     }
-    blockRect(a - wa / 2 - 0.45, a + wa / 2 + 0.45, bb - lb / 2, bb + lb / 2);
+    blockRect(a - wa / 2 - 0.45, a + wa / 2 + 0.45, bb - lb / 2, bb + lb / 2, 0.77, true);
   }
 }

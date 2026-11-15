@@ -360,13 +360,15 @@ export class MapWorld {
 
     // Collision: one obstacle per building outer ring.
     const ids: string[] = [];
-    const { coords, offsets, heights, bases } = t.footprints;
+    const { coords, offsets, heights, bases, tops, walk } = t.footprints;
     for (let b = 0; b + 1 < offsets.length; b++) {
       const pts: Vec2[] = [];
       for (let k = offsets[b]!; k < offsets[b + 1]!; k++) pts.push({ x: coords[k * 2]!, z: coords[k * 2 + 1]! });
       if (pts.length < 3) continue;
       const id = `${t.key}#${b}`;
-      this.collision.add({ id, footprint: pts, height: heights[b]!, baseY: bases[b]! });
+      this.collision.add({
+        id, footprint: pts, height: heights[b]!, baseY: bases[b]!, solidTop: tops[b]!, walkable: walk[b] === 1,
+      });
       ids.push(id);
     }
 

@@ -75,12 +75,21 @@ the west wall's doors, table counts and colors under the shed, the fence type, t
 | ![lot](art/hero/home-slice-front.jpg) | ![aerial](art/hero/home-slice-aerial.jpg) |
 | ![under the shed](art/hero/home-slice-under.jpg) | ![kids' turf](art/hero/home-slice-turf.jpg) |
 
-### Hyde Park Animal Clinic (NW corner of Duval & 51st)
+### Hyde Park Animal Clinic (NW corner of Duval & 51st) and 5104 Duval next door
 
 ![vet](art/hero/vet-corner.jpg)
 
-Tall (2.1 m) wood privacy fence around its lot (the clinic plus its big wooded side yard toward Duval,
-which it claims up to 1.5 m short of the house north of the yard); the clinic's front on 51st stays open.
+Clinic: tall (2.1 m) wood privacy fence around its lot: the clinic plus its big wooded side yard toward
+Duval, up to the neighbor's gravel driveway (aerial: a fence shadow along the clinic's west side, a car
+parked on the neighbor's drive); the clinic's front on 51st stays open. No photos of the clinic itself
+were found: the fence type and its exact run along 51st/Duval are guesses.
+
+![5104 Duval](art/hero/duval-5104.jpg)
+
+5104 Duval (1938 bungalow + a newer duplex behind it), from the 2025 listing photos: charcoal siding,
+white trim, aqua door, front gable; the front yard closed by a cedar **hog-wire** fence with a gate at the
+walk; gravel driveway on the clinic's side (outside the yard fence) up to a tall horizontal-cedar double
+gate (`landmarks.house_5104`).
 
 ## Rules
 
@@ -93,7 +102,7 @@ which it claims up to 1.5 m short of the house north of the yard); the clinic's 
 | Ground | Lawns and beds are painted into the tile texture with soft mottling. Hard surfaces (road, sidewalk, driveway, walk, parking) are crisp geometry **cut along the ground mesh's triangles**, so they lie exactly on the terrain. Lane markings are draped the same way. |
 | Scale | Real meters. Houses come from real footprints and City of Austin heights (roof peak). Bungalow walls are ≥ 2.6 m floor to eave, piers 0.65 m. |
 | Text | Real street names on the signs ("Duval St", "E 52nd St"), shop names from OSM; one small text atlas per tile. |
-| Fences | Follow **approximate lots** (`dress.compute_lots`: OSM has no parcels, so land is split by nearest building, garages join their house's lot, lot lines straightened as a coverage so neighbors share them exactly). Front yards (38% of houses that reach the street): picket, chain link, black iron or horizontal cedar, a closed loop along the lot's front and sides back to the house walls, with a gate at the walk and a gap at the driveway. Back yards: 1.85 m cedar privacy fence on lot lines shared with neighbors (85%) behind the house fronts, and along alleys. They block the dog, not the camera. |
+| Fences | Kinds: picket, chain link, black iron, horizontal cedar, cedar hog-wire (welded-wire panels), tall vertical-board privacy. Follow **approximate lots** (`dress.compute_lots`: OSM has no parcels, so land is split by nearest building, garages join their house's lot, lot lines straightened as a coverage so neighbors share them exactly). Front yards (38% of houses that reach the street): picket, chain link, black iron or horizontal cedar, a closed loop along the lot's front and sides back to the house walls, with a gate at the walk and a gap at the driveway. Back yards: 1.85 m cedar privacy fence on lot lines shared with neighbors (85%) behind the house fronts, and along alleys. Driveways and other houses' walks stay outside a fenced yard. A safety net trims any fence off roads, sidewalks and walks (gates across drives are exempt). The dog jumps fences up to its jump height (2 m: every privacy fence, not the vet's 2.1 m one) and onto cars; fences never block the camera. |
 | Parked cars | Parallel along both curbs of the dressed street (60% of slots), never within ~6.5 m of an intersection, at a curb cut, or 4.6 m (15 ft) of a hydrant; facing traffic on their side. Cars in driveways and in landmark lots too. |
 | Budgets | Keep a house ≤ ~500 triangles (measured: avg 254, max 373), a tree ≤ ~400 (oak 352, pecan 256, myrtle 292, elm 216), a car ~200. Dressed tile ≤ ~25k structure triangles (measured max 18.5k). Whole frame in the block: ~235k triangles (shadow pass included), ~37 draw calls (budget 600k / 150). A hero location ≤ ~12k triangles (Home Slice: see the perf report). |
 

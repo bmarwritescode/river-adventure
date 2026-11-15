@@ -23,6 +23,14 @@ export interface Obstacle {
   height: number;
   /** Bottom of the prism; defaults to 0. */
   baseY?: number;
+  /**
+   * World y of the physical top the dog sees (fence top, car hood): once its feet are above this it
+   * passes over. Default: always solid (buildings, trunks, boundary walls). Independent of `height`,
+   * which is what blocks the camera.
+   */
+  solidTop?: number;
+  /** The dog can land and stand on top (cars, porches, tables); otherwise only jump over it. */
+  walkable?: boolean;
 }
 
 interface PreparedObstacle {
@@ -32,6 +40,8 @@ interface PreparedObstacle {
   winding: number;
   baseY: number;
   topY: number;
+  solidTop: number;
+  walkable: boolean;
   stamp: number;
 }
 
@@ -67,6 +77,8 @@ export class CollisionWorld {
       winding: signedArea(def.footprint) >= 0 ? 1 : -1,
       baseY,
       topY: baseY + def.height,
+      solidTop: def.solidTop ?? Infinity,
+      walkable: def.walkable ?? false,
       stamp: 0,
     };
     this.obstacles.set(def.id, prepared);
@@ -98,9 +110,10 @@ export class CollisionWorld {
   /**
    * Push a circle out of all obstacles it overlaps. Because we only remove the
    * penetrating component, motion into a wall turns into sliding along it.
-   * All obstacles block regardless of height (the dog can't jump onto/over them yet).
+   * Obstacles whose solid top is at or below the dog's feet (+ stepUp) don't block: it's above them.
    */
-  resolveCircle(x: number, z: number, radius: number): ResolveResult {
+  resolveCircle(x: number, z: number, radius: number, feetY = -Infinity): ResolveResult {
+    const clearY = feetY + TUNING.collision.stepUp;
     let collided = false;
     const iterations = TUNING.collision.iterations;
     for (let iter = 0; iter < iterations; iter++) {
@@ -109,6 +122,7 @@ export class CollisionWorld {
       for (const o of candidates) {
         const b = o.bounds;
         if (x + radius < b.minX || x - radius > b.maxX || z + radius < b.minZ || z - radius > b.maxZ) continue;
+        if (o.solidTop <= clearY) continue;
         const pts = o.def.footprint;
         const inside = pointInPolygon(x, z, pts);
         const c = closestPointOnPolygon(x, z, pts);
@@ -141,9 +155,11 @@ export class CollisionWorld {
   }
 
   /** True if the circle penetrates any obstacle by more than `tolerance` meters. */
-  overlapsCircle(x: number, z: number, radius: number, tolerance = 0.02): boolean {
+  overlapsCircle(x: number, z: number, radius: number, tolerance = 0.02, feetY = -Infinity): boolean {
     const r = Math.max(0, radius - tolerance);
+    const clearY = feetY + TUNING.collision.stepUp;
     for (const o of this.query({ minX: x - r, minZ: z - r, maxX: x + r, maxZ: z + r })) {
+      if (o.solidTop <= clearY) continue;
       const b = o.bounds;
       if (x + r < b.minX || x - r > b.maxX || z + r < b.minZ || z - r > b.maxZ) continue;
       const pts = o.def.footprint;
@@ -151,6 +167,22 @@ export class CollisionWorld {
       if (closestPointOnPolygon(x, z, pts).distSq < r * r) return true;
     }
     return false;
+  }
+
+  /**
+   * Height of the highest walkable top under (x, z) that the dog can be standing on: at most
+   * stepUp above its feet. -Infinity if none (then the terrain is the ground).
+   */
+  supportHeight(x: number, z: number, feetY: number): number {
+    const maxY = feetY + TUNING.collision.stepUp;
+    let best = -Infinity;
+    for (const o of this.query({ minX: x, minZ: z, maxX: x, maxZ: z })) {
+      if (!o.walkable || o.solidTop > maxY || o.solidTop <= best) continue;
+      const b = o.bounds;
+      if (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) continue;
+      if (pointInPolygon(x, z, o.def.footprint)) best = o.solidTop;
+    }
+    return best;
   }
 
   /**
