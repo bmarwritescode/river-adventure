@@ -94,11 +94,11 @@ export const MAIN_DOG: DogProfile = {
   speeds: {
     walk: 1.5,
     trot: 3.5,
-    run: 8.0,
+    run: 12.0,
     sniff: 0.45,
   },
   movement: {
-    acceleration: 7.0,
+    acceleration: 9.0,
     deceleration: 6.0,
     brakeDeceleration: 14.0,
     turnRateSlow: 7.0,

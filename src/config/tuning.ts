@@ -90,7 +90,7 @@ export const TUNING = {
     /** Meters travelled per full gait cycle at each pace. */
     strideWalk: 0.9,
     strideTrot: 1.4,
-    strideRun: 2.6,
+    strideRun: 3.4,
     /** Head pitch while sniffing, radians (negative = nose down). */
     sniffHeadPitch: -1.05,
     /** Forward body tilt while sniffing, radians. */
