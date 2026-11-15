@@ -13,6 +13,7 @@ const fakeCanvas = (w: number, h: number): SignPainter => ({
   fillStyle: '', strokeStyle: '', lineWidth: 1, lineJoin: 'miter', font: '', textAlign: 'center', textBaseline: 'middle',
   globalCompositeOperation: 'source-over',
   fillRect() {}, strokeRect() {}, fillText() {}, strokeText() {},
+  lineCap: 'butt', beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, arc() {}, ellipse() {}, fill() {}, stroke() {},
   measureText: (t: string) => ({ width: t.length * 20 }),
   getImageData: () => ({ data: new Uint8ClampedArray(w * h * 4) }),
 });
@@ -194,10 +195,16 @@ describe('Home Slice landmark', () => {
     // Every sign quad sits within 0.35 m of the storefront plane or above the roof (letters on the band).
     const [ox, oz] = [575.67, -1010.64], n = [0.4832, -0.8755];
     const p = d.signs!.mesh.positions;
-    for (let k = 0; k < p.length; k += 3) {
-      const b = (p[k]! - ox) * n[0]! + (p[k + 2]! - oz) * n[1]!;
-      expect(Math.abs(b)).toBeLessThan(1.15); // awning valance text is ~1.05 m out
+    let poleSign = 0;
+    for (let q = 0; q < p.length; q += 12) { // 4 vertices per quad
+      const ys = [p[q + 1]!, p[q + 4]!, p[q + 7]!, p[q + 10]!];
+      if (Math.max(...ys) - Math.min(...ys) > 3) { poleSign++; continue; } // the Queen of Pies, out by 53rd
+      for (let k = q; k < q + 12; k += 3) {
+        const b = (p[k]! - ox) * n[0]! + (p[k + 2]! - oz) * n[1]!;
+        expect(Math.abs(b)).toBeLessThan(1.15); // awning valance text is ~1.05 m out
+      }
     }
+    expect(poleSign).toBe(2); // both faces
   });
 });
 

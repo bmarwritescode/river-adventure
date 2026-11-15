@@ -188,12 +188,12 @@ def home_slice(D: Dressing, b: Building, road, sidewalk) -> None:
 
 # --- Hyde Park Animal Clinic, NW corner of Duval & 51st -------------------------------------------------
 #
-# Tall wood privacy fence around most of the lot (side drive on the west, big side yard toward
-# Duval); the clinic's front on 51st stays open. Lot corner measured from the aerial.
+# Tall wood privacy fence around most of its lot (the approximate lot from dress.compute_lots: it
+# stops where the neighbors' lots begin); the clinic's front on 51st stays open.
 
 VET_ID = 381764304
-VET_LOT_NW = (421.0, -872.0)    # world: north-west lot corner (west fence along the side drive)
 VET_FENCE_HEIGHT = 2.1
+VET_YARD_GAP = 1.5              # m between the yard fence and the house north of the yard
 
 
 def _street_dir(streets, name_part: str, near: tuple[float, float]) -> tuple[float, float] | None:
@@ -213,7 +213,7 @@ def _street_dir(streets, name_part: str, near: tuple[float, float]) -> tuple[flo
     return dx / L, dz / L
 
 
-def vet_clinic(D: Dressing, b: Building, streets, road, sidewalk) -> None:
+def vet_clinic(D: Dressing, b: Building, streets, road, sidewalk, buildings) -> None:
     d51 = _street_dir(streets, "51st", b.poly.centroid.coords[0])
     dduv = _street_dir(streets, "Duval", b.poly.centroid.coords[0])
     if d51 is None or dduv is None:
@@ -222,17 +222,10 @@ def vet_clinic(D: Dressing, b: Building, streets, road, sidewalk) -> None:
         d51 = (-d51[0], -d51[1])     # east
     if dduv[1] < 0:
         dduv = (-dduv[0], -dduv[1])  # south
-    x0, z0 = VET_LOT_NW
-    lot = Polygon([(x0, z0), (x0 + d51[0] * 70, z0 + d51[1] * 70),
-                   (x0 + d51[0] * 70 + dduv[0] * 60, z0 + d51[1] * 70 + dduv[1] * 60),
-                   (x0 + dduv[0] * 60, z0 + dduv[1] * 60)])
-    lot = lot.difference(unary_union([road, sidewalk]).buffer(0.6))
-    parts = [p for p in polygons_of(lot) if p.area > 50]
-    if not parts:
+    lot = D.lots.get(b.osm_id)
+    if lot is None:
         return
-    lot = max(parts, key=lambda p: p.intersection(b.poly.buffer(5)).area)
-    ring = LineString(lot.exterior.coords)
-    # Open frontage: the clinic's front (toward 51st), from the west lot line to just past its east wall.
+    D.custom_lots.add(b.osm_id)
     ex, ez = d51
     fx, fz = -ez, ex
     c = b.poly.centroid
@@ -240,11 +233,37 @@ def vet_clinic(D: Dressing, b: Building, streets, road, sidewalk) -> None:
     q = st51.line.interpolate(st51.line.project(c))
     if (q.x - c.x) * fx + (q.y - c.y) * fz < 0:
         fx, fz = -fx, -fz  # (fx, fz) points from the clinic toward 51st
+    e_min = min(x * ex + z * ez for x, z in b.poly.exterior.coords)
     e_max = max(x * ex + z * ez for x, z in b.poly.exterior.coords) + 1.0
     f_front = max(x * fx + z * fz for x, z in b.poly.exterior.coords) - 0.5
     W = lambda e, f: (ex * e + fx * f, ez * e + fz * f)  # noqa: E731
+    # The clinic owns the big side yard toward Duval (aerial): from its east wall to Duval, up to just
+    # short of the house north of the yard. Nearest-building lots would give the yard to that house.
+    land = lot.envelope.buffer(60).difference(unary_union([road, sidewalk]).buffer(0.45))
+    yard_neighbors = [o for o in buildings if o is not b and o.poly.area >= 45
+                      and o.poly.distance(b.poly) < 40
+                      and min(x * ex + z * ez for x, z in o.poly.exterior.coords) > e_max - 1.0]
+    if yard_neighbors:
+        f_north = max(max(x * fx + z * fz for x, z in o.poly.exterior.coords) for o in yard_neighbors
+                      if max(x * fx + z * fz for x, z in o.poly.exterior.coords) < f_front) + VET_YARD_GAP
+        yard = Polygon([W(e_max - 1.0, f_north), W(e_max + 80, f_north), W(e_max + 80, f_front + 60),
+                        W(e_max - 1.0, f_front + 60)]).intersection(land)
+        parts = [g for g in polygons_of(unary_union([lot, yard])) if g.intersects(b.poly)]
+        if parts:
+            lot = max(parts, key=lambda g: g.area)
+            D.lots[b.osm_id] = lot
+            for oid in list(D.lots):  # take the yard away from the neighbors' lots
+                if oid != b.osm_id and D.lots[oid].intersects(lot):
+                    rest = [g for g in polygons_of(D.lots[oid].difference(lot.buffer(0.01))) if g.area > 1]
+                    if rest:
+                        D.lots[oid] = max(rest, key=lambda g: g.area)
+                    else:
+                        del D.lots[oid]
+    ring = LineString(lot.exterior.coords)
+    # Open frontage: the clinic's front (toward 51st), from the west lot line to just past its east wall.
     cut = Polygon([W(e_max - 80, f_front), W(e_max, f_front), W(e_max, f_front + 40), W(e_max - 80, f_front + 40)])
-    fence = ring.difference(cut).difference(b.poly.buffer(0.4))
+    others = unary_union([o.poly for o in buildings if o is not b and o.poly.distance(lot) < 5])
+    fence = ring.difference(cut).difference(b.poly.buffer(0.4)).difference(others.buffer(0.3))
     n = 0
     for g in getattr(fence, "geoms", [fence]):
         if isinstance(g, LineString) and g.length > 1.0:
@@ -266,4 +285,4 @@ def apply(D: Dressing, dressed: list[Building], layers, road, sidewalk, playable
     if vet is not None:
         if not getattr(vet, "dress", None):
             vet.dress = {}  # type: ignore[attr-defined]
-        vet_clinic(D, vet, layers.streets, road, sidewalk)
+        vet_clinic(D, vet, layers.streets, road, sidewalk, layers.buildings)

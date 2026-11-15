@@ -43,6 +43,10 @@ export interface LabelRequest {
   border?: boolean;
   /** Atlas rows (64 px each): more = sharper big lettering. */
   rows?: number;
+  /** Paint a picture instead of text (cut-out sign art). */
+  art?: 'queen';
+  /** Two-sided signs: distance between the faces (default ~1 cm). */
+  thickness?: number;
 }
 
 export interface DressContext {

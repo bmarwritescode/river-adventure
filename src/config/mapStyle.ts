@@ -111,7 +111,11 @@ export const MAP_STYLE = {
       metalRoof: '#b7c3c8',
       soffit: '#b9b29c', // plywood under the shed deck
       sail: '#c9ad6e',
-      bar: ['#d9862c', '#e9b23a', '#7a4a2a', '#efe1c0'], // '70s t-shirt stripes on the patio bar tiles
+      // Patio bar (photo): white grid tile, '70s rainbow stripes, stainless top, multicolor chairs.
+      barTile: '#f1efe6',
+      barTop: '#b9bec2',
+      barStripes: ['#d8402f', '#ee8a2a', '#f2c53a', '#3f9a5a', '#3a73b8'],
+      chairs: ['#d8342b', '#ee6a22', '#f1c232', '#3b8c4f', '#2f6db3'],
       tableRed: '#b3262b',
       bench: '#7a5a3e',
       turf: '#5aa83c',

@@ -52,6 +52,8 @@ const HS = {
   cornerLook: { x: 578.0, z: -1003.0 },
   aerial: { x: 540.0, z: -1050.0 },
   signCam: { x: 593.8, z: -1014.4 },
+  queenCam: { x: 569.0, z: -1042.5 },
+  queenLook: { x: 577.6, z: -1032.0 },
   signLook: { x: 588.0, z: -1003.9 },
   underCam: { x: 563.9, z: -999.4 },
   underLook: { x: 574.5, z: -1013.6 },
@@ -81,6 +83,7 @@ const VIEWS: View[] = [
   { name: 'hs-aerial', cam: cam(HS.aerial, 38, HS.center, 0), dog: { ...HS.lotDog, heading: HS.southHeading } },
   // Hyde Park Animal Clinic (NW corner of Duval & 51st): tall privacy fence around its yard.
   { name: 'vet-corner', cam: cam({ x: 454.0, z: -811.0 }, 1.7, { x: 425.0, z: -846.0 }, 1.6), dog: dogAt(0.06, -6) },
+  { name: 'hs-queen', cam: cam(HS.queenCam, 1.6, HS.queenLook, 5.6), dog: { ...HS.lotDog, heading: HS.southHeading } },
   { name: 'hs-sign', cam: cam(HS.signCam, 1.7, HS.signLook, 3.6), dog: { ...HS.lotDog, heading: HS.southHeading } },
   { name: 'hs-under', cam: cam(HS.underCam, 1.5, HS.underLook, 1.7), dog: { ...HS.underDog, heading: HS.southHeading } },
   { name: 'hs-turf', cam: cam(HS.turfCam, 0.8, HS.turfLook, 0.5), dog: { ...HS.turfDog, heading: HS.southHeading } },

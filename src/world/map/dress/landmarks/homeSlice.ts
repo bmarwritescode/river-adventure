@@ -243,22 +243,52 @@ export function buildHomeSlice(ctx: DressContext, b: TileBuilding, lm: LandmarkI
     west(b0 + 0.08, b1 - 0.08, 0, 2.45, 0.03, frame);
     west(b0, b1, 0.08, 2.3, 0.05, jitter(glass, 0.4, 0.05), shade(glass, 1.25));
   }
-  // Outdoor bar: '70s striped tile front, dark walnut top, back bar against the wall, stools.
+  // Outdoor bar (photo): white grid tile with '70s rainbow stripes that run along and bend down,
+  // stainless top, back bar against the brick, multicolor bar chairs, brass dome pendants.
   const br = HOME_SLICE.bar;
-  const stripes = H.bar.map(rgb);
-  box((br.a0 + br.a1) / 2, (br.b0 + br.b1) / 2, 0, 1.0, br.a1 - br.a0, br.b0 - br.b1 > 0 ? br.b0 - br.b1 : br.b1 - br.b0, stripes[3]!);
-  const bars = [0.18, 0.36, 0.54, 0.72, 0.9];
-  bars.forEach((y, i) => {
-    mb.face([P(br.a0 - 0.01, br.b0, y - 0.18), P(br.a0 - 0.01, br.b1, y - 0.18), P(br.a0 - 0.01, br.b1, y), P(br.a0 - 0.01, br.b0, y)], stripes[i % 3]!, Wd);
+  const len = Math.abs(br.b1 - br.b0), bMid = (br.b0 + br.b1) / 2;
+  const bLo = Math.min(br.b0, br.b1), bHi = Math.max(br.b0, br.b1);
+  const tileC = rgb(H.barTile), steel = rgb(H.barTop);
+  box((br.a0 + br.a1) / 2, bMid, 0, 1.0, br.a1 - br.a0, len, tileC);
+  const fa = br.a0 - 0.012; // the bar front (faces the patio, −a)
+  for (let y = 0.12; y < 1.0; y += 0.12) mb.face([P(fa, br.b0, y - 0.006), P(fa, br.b1, y - 0.006), P(fa, br.b1, y + 0.006), P(fa, br.b0, y + 0.006)], shade(tileC, 0.82), Wd);
+  for (let bb = bLo + 0.12; bb < bHi; bb += 0.12) mb.face([P(fa, bb - 0.006, 0), P(fa, bb + 0.006, 0), P(fa, bb + 0.006, 1.0), P(fa, bb - 0.006, 1.0)], shade(tileC, 0.82), Wd);
+  // Rainbow stripes: run along the bar, then turn down to the floor in concentric quarter circles.
+  const R0 = 0.42, bc = bHi - 1.0, yc = 0.66 - R0, f2 = fa - 0.004, t = 0.055;
+  H.barStripes.map(rgb).forEach((c, k) => {
+    const R = R0 - k * 0.075, y = yc + R;
+    mb.face([P(f2, bLo + 0.05, y - t / 2), P(f2, bc, y - t / 2), P(f2, bc, y + t / 2), P(f2, bLo + 0.05, y + t / 2)], c, Wd);
+    const steps = 4;
+    for (let i = 0; i < steps; i++) {
+      const a0 = (i / steps) * (Math.PI / 2), a1 = ((i + 1) / steps) * (Math.PI / 2);
+      const pt = (ang: number, r: number): V3 => P(f2, bc + Math.sin(ang) * r, yc + Math.cos(ang) * r);
+      mb.face([pt(a0, R - t / 2), pt(a1, R - t / 2), pt(a1, R + t / 2), pt(a0, R + t / 2)], c, Wd);
+    }
+    mb.face([P(f2, bc + R - t / 2, 0.02), P(f2, bc + R + t / 2, 0.02), P(f2, bc + R + t / 2, yc), P(f2, bc + R - t / 2, yc)], c, Wd);
   });
-  box((br.a0 + br.a1) / 2 - 0.05, (br.b0 + br.b1) / 2, 1.0, 1.08, br.a1 - br.a0 + 0.25, Math.abs(br.b1 - br.b0) + 0.2, rgb('#3b2618'));
-  box(-0.25, (br.b0 + br.b1) / 2, 0, 2.1, 0.4, Math.abs(br.b1 - br.b0), rgb('#4a3020'), { top: rgb('#3b2618') });
+  box((br.a0 + br.a1) / 2 - 0.06, bMid, 1.0, 1.05, br.a1 - br.a0 + 0.3, len + 0.15, steel, { top: shade(steel, 1.08) });
+  box(-0.25, bMid, 0, 2.1, 0.4, len, rgb('#3e4a3e'), { top: steel }); // back bar shelving (green, as in the photo)
   blockRect(br.a0 - 0.05, br.a1, br.b0, br.b1);
-  for (let bb = br.b1 + 0.5; bb < br.b0 - 0.3; bb += 0.85) {
-    const [x, z] = W(br.a0 - 0.45, bb);
-    mb.cylinder(x, G, z, 0.03, x, G + 0.72, z, 0.03, 4, frame, null);
-    mb.cylinder(x, G + 0.72, z, 0.2, x, G + 0.78, z, 0.2, 7, rgb(H.tableRed));
+  const chairs = H.chairs.map(rgb);
+  let ci = 0;
+  for (let bb = bLo + 0.45; bb < bHi - 0.3; bb += 0.75) {
+    const c = chairs[ci++ % chairs.length]!;
+    box(br.a0 - 0.42, bb, 0, 0.74, 0.04, 0.04, c); // legs (front pair stands for all four)
+    box(br.a0 - 0.42, bb, 0.7, 0.76, 0.4, 0.4, c);
+    box(br.a0 - 0.62, bb, 0.76, 1.15, 0.04, 0.38, c); // back
   }
+  // Brass dome pendants over the bar.
+  const brassC = rgb(H.brass);
+  for (let bb = bLo + 0.8; bb < bHi; bb += 1.6) {
+    const [x, z] = W((br.a0 + br.a1) / 2 - 0.2, bb);
+    mb.cylinder(x, G + 2.35, z, 0.01, x, G + sh.yWall - 0.15, z, 0.01, 3, frame, null);
+    mb.cylinder(x, G + 2.12, z, 0.3, x, G + 2.38, z, 0.06, 8, brassC, brassC, shade(brassC, 1.2));
+  }
+
+  // Queen of Pies pole sign (photo: Austinot, 2018), on the lot's corner at Duval & 53rd in front of
+  // the big live oak, turned to face the intersection.
+  queenSign(-8.6, 19.6);
+
   // Tables under the shed (red tops, black legs).
   for (const bb of [-1.0, -3.7, -6.4, -9.1, -11.8]) tableSet(-4.4, bb, 0.8, 1.6, rgb(H.tableRed), true);
 
@@ -364,6 +394,39 @@ export function buildHomeSlice(ctx: DressContext, b: TileBuilding, lm: LandmarkI
           foreground: '#f7f2ea', rows: 0.75 });
       }
     }
+  }
+
+  function queenSign(a: number, bb: number): void {
+    const [x, z] = W(a, bb);
+    const g0 = g(x, z) - G; // ground at the sign, relative to the storefront grade
+    const poleC = rgb('#5a5e62'), cab = rgb('#9ea3a6');
+    const QW = 2.8, QH = 4.2, bottom = g0 + 4.0;
+    // Diagonal to the corner: faces look toward the intersection (n − u) and back into the lot; the
+    // sign plane runs along −(u + n) (= the label's +X for that facing).
+    const fx_ = (nx - ux) / Math.SQRT2, fz_ = (nz - uz) / Math.SQRT2;
+    const px_ = -(ux + nx) / Math.SQRT2, pz_ = -(uz + nz) / Math.SQRT2;
+    mb.cylinder(x, G + g0 - 0.2, z, 0.15, x, G + bottom + 0.6, z, 0.13, 8, poleC, null);
+    block(a, bb, 0.22);
+    // Gray cabinet behind the figure, an arm up to the pie, and the pie's drum (axis along u).
+    const along = (t: number): [number, number] => [x + px_ * t, z + pz_ * t];
+    const rotN = Math.atan2(-pz_, px_);
+    const [cx0, cz0] = along((0.38 - 0.5) * QW);
+    mb.box(cx0, G + bottom + 0.5, cz0, 0.5, G + bottom + 2.3, 0.26, cab, rotN, { bottom: true });
+    const [cx1, cz1] = along(0.2);
+    mb.box(cx1, G + bottom + 2.2, cz1, 0.35, G + bottom + 2.95, 0.26, cab, rotN);
+    const pr = 0.32 * QW, pc = along((0.62 - 0.5) * QW), py = G + bottom + QH - 0.23 * QH;
+    const N = 18;
+    for (let i = 0; i < N; i++) {
+      const t0 = (i / N) * Math.PI * 2, t1 = ((i + 1) / N) * Math.PI * 2;
+      const q = (t: number, side: number): V3 => [pc[0] + px_ * Math.cos(t) * pr + fx_ * side * 0.15, py + Math.sin(t) * pr, pc[1] + pz_ * Math.cos(t) * pr + fz_ * side * 0.15];
+      const tm = (t0 + t1) / 2;
+      mb.face([q(t0, -1), q(t1, -1), q(t1, 1), q(t0, 1)], cab, [px_ * Math.cos(tm), Math.sin(tm), pz_ * Math.cos(tm)]);
+    }
+    // The cut-out art (both faces).
+    ctx.labels.push({
+      text: '', art: 'queen', x, y: G + bottom + QH / 2, z, rot: Math.atan2(fx_, fz_), width: QW, height: QH,
+      background: null, twoSided: true, thickness: 0.33, rows: 6,
+    });
   }
 
   function multiPanel(a0: number, a1: number, y0: number, y1: number): void {

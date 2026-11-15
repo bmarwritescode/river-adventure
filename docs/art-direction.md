@@ -56,12 +56,15 @@ from aerial imagery and photos:
 
 ![Home Slice storefront](art/hero/home-slice-sign.jpg)
 
+![Queen of Pies pole sign](art/hero/home-slice-queen.jpg)
+
 | Part | What it's based on |
 | --- | --- |
 | Building | OSM footprint (former Bair's office supply, brick kept intact). Roof deck 4.15 m, parapet to 4.75 m; OSM's 6.78 m is the rooftop units. Light membrane roof with HVAC units (aerial). |
 | Storefront (faces north, onto the lot) | Press photo (Patch / CultureMap, 2018), measured with the doors as scale: take-out door with "501" + two painted windows (*Authentic N.Y. STYLE*, *Pizza*, menu strips) on white subway tile under a blue/white striped awning; black double doors with brass push bars and windows on multicolor brick under a red box awning (RESTAURANT · AUTHENTIC NY-STYLE PIZZA); multicolor brick panels; "RESTAURANT BAR" in white letters; black sign band with **sequined HOME SLICE (gold) PIZZA (silver)** letters over the east half. |
 | Lot | Aerial: walk along the storefront, 6 nose-in stalls + a tree planter, the 6 m aisle (OSM service road), 9 stalls facing the island along 53rd (elms, oak), 8 stalls along the east wall by the alley. |
-| Patio (west, facing Duval) | Aerial + press ("NYC sidewalk scaffolding", '70s-t-shirt bar tiles): corrugated metal shed roof on green scaffold pipes with an outdoor bar, giant ceiling fans and tables under it; tan shade sails; blue/white striped canopies over red picnic tables along a black metal fence; turf kids' area ("hills and tunnels") with mounds and a crawl tunnel the dog fits through; big live oaks. |
+| Queen of Pies pole sign | Photo (Austinot, 2018): the crowned, pig-tailed, mustachioed pizza chef raising a pepperoni pie, white cut-out with red outline, on a tall gray pole with a gray cabinet and pie drum behind. Painted into the sign atlas with canvas paths (`signs.ts`, `drawQueen`). **Position is a guess**: the lot's corner at Duval & 53rd, in front of the big live oak (a big tree stands right behind it in the photo), facing the intersection. |
+| Patio (west, facing Duval) | Aerial + press + photo ("NYC sidewalk scaffolding"): corrugated metal shed roof on green scaffold pipes over the outdoor bar (white grid tile with '70s rainbow stripes that turn down to the floor, stainless top, multicolor bar chairs, brass dome pendants), giant ceiling fans and tables; tan shade sails; blue/white striped canopies over red picnic tables along a black metal fence; turf kids' area ("hills and tunnels") with mounds and a crawl tunnel the dog fits through; big live oaks. |
 
 **Guesses** (the photo doesn't show them): the storefront west of the main windows (continued
 windows + red awning; the awning text after "PIZZA" is cut off in the photo, so it's left blank),
@@ -76,8 +79,8 @@ the west wall's doors, table counts and colors under the shed, the fence type, t
 
 ![vet](art/hero/vet-corner.jpg)
 
-Tall (2.1 m) wood privacy fence around the lot: west line along the side drive (seen on the aerial),
-north line, Duval and 51st; the clinic's front on 51st stays open. The lot corner is in `landmarks.py`.
+Tall (2.1 m) wood privacy fence around its lot (the clinic plus its big wooded side yard toward Duval,
+which it claims up to 1.5 m short of the house north of the yard); the clinic's front on 51st stays open.
 
 ## Rules
 
@@ -90,7 +93,7 @@ north line, Duval and 51st; the clinic's front on 51st stays open. The lot corne
 | Ground | Lawns and beds are painted into the tile texture with soft mottling. Hard surfaces (road, sidewalk, driveway, walk, parking) are crisp geometry **cut along the ground mesh's triangles**, so they lie exactly on the terrain. Lane markings are draped the same way. |
 | Scale | Real meters. Houses come from real footprints and City of Austin heights (roof peak). Bungalow walls are ≥ 2.6 m floor to eave, piers 0.65 m. |
 | Text | Real street names on the signs ("Duval St", "E 52nd St"), shop names from OSM; one small text atlas per tile. |
-| Fences | Front yards (38%): picket, chain link, black iron or horizontal cedar, just behind the sidewalk with returns to the house and gaps at the walk and driveway. Side yards (75%): 1.85 m cedar privacy fence from the house to its neighbor. They block the dog, not the camera. |
+| Fences | Follow **approximate lots** (`dress.compute_lots`: OSM has no parcels, so land is split by nearest building, garages join their house's lot, lot lines straightened as a coverage so neighbors share them exactly). Front yards (38% of houses that reach the street): picket, chain link, black iron or horizontal cedar, a closed loop along the lot's front and sides back to the house walls, with a gate at the walk and a gap at the driveway. Back yards: 1.85 m cedar privacy fence on lot lines shared with neighbors (85%) behind the house fronts, and along alleys. They block the dog, not the camera. |
 | Parked cars | Parallel along both curbs of the dressed street (60% of slots), never within ~6.5 m of an intersection, at a curb cut, or 4.6 m (15 ft) of a hydrant; facing traffic on their side. Cars in driveways and in landmark lots too. |
 | Budgets | Keep a house ≤ ~500 triangles (measured: avg 254, max 373), a tree ≤ ~400 (oak 352, pecan 256, myrtle 292, elm 216), a car ~200. Dressed tile ≤ ~25k structure triangles (measured max 18.5k). Whole frame in the block: ~235k triangles (shadow pass included), ~37 draw calls (budget 600k / 150). A hero location ≤ ~12k triangles (Home Slice: see the perf report). |
 

@@ -155,7 +155,7 @@ async function runSetup(browser: Browser, setup: Setup): Promise<Record<string, 
 
   // block: the fully dressed art block (Duval 51st -> 53rd): densest geometry + shadows, sprint through it
   await page.keyboard.press('Backquote');
-  await teleport(page, 'art-block');
+  await teleport(page, 'art-block-street'); // up Duval's open centerline (the sidewalk bends; yards are fenced)
   await sleep(1500);
   const blockStart = await page.evaluate(() => window.__game!.dog.position);
   out.block = await measure(page, () => hold(page, ['ShiftLeft', 'KeyW'], 12000));

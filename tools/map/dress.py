@@ -95,8 +95,8 @@ STREET_PARKING_HYDRANT = 4.6      # 15 ft either side of a hydrant (Texas law)
 FENCE_KINDS = {"picket": (0.3, 0.95), "chain": (0.3, 1.2), "iron": (0.15, 1.1), "cedar": (0.25, 1.2)}
 PRIVACY_FENCE_HEIGHT = 1.85
 FRONT_FENCE_CHANCE = 0.38   # houses with a fenced front yard
-SIDE_FENCE_CHANCE = 0.75    # privacy fence from a house's side to its neighbor (closes the back yard)
-SIDE_FENCE_MAX = 9.0
+LOT_LINE_TOLERANCE = 4.0    # m: how far a straightened lot line may move from the nearest-building split
+SIDE_FENCE_CHANCE = 0.85    # privacy fence on a lot line shared with a neighbor, behind the house fronts
 
 
 # --- Data ---------------------------------------------------------------------------------------
@@ -117,6 +117,8 @@ class Dressing:
     fences: list[tuple[str, float, LineString]] = field(default_factory=list)
     # hand-made sites (landmarks.py): random trees / props stay out of these
     keep_out: list[Polygon] = field(default_factory=list)
+    lots: dict[int, Polygon] = field(default_factory=dict)
+    custom_lots: set[int] = field(default_factory=set)  # lots fenced by a landmark (no generic fences)
     notes: list[str] = field(default_factory=list)
 
     def add(self, kind: str, x: float, z: float, rot: float = 0.0, scale: float = 1.0, variant: int = 0) -> None:
@@ -326,7 +328,8 @@ def dress(osm: OsmData, layers: Layers, proj, playable: Polygon) -> Dressing:
         if kind == "house":
             houses.append((b, info))
 
-    # Hand-made hero locations (landmarks.py): site plans that replace the generic dressing there.
+    # Approximate lots (fences follow them), then hand-made hero locations (landmarks.py).
+    D.lots = compute_lots(layers.buildings, area.buffer(60), unary_union([road, sidewalk]).intersection(area.buffer(140)), playable)
     landmarks.apply(D, dressed, layers, road, sidewalk, playable)
     site = unary_union(D.keep_out) if D.keep_out else Polygon()
 
@@ -441,9 +444,15 @@ def dress(osm: OsmData, layers: Layers, proj, playable: Polygon) -> Dressing:
                 if not walkways.intersects(Point(cx, cz).buffer(0.45)):
                     D.add(kind, cx, cz, face(fx, fz), 1.0, 0)
 
-    # 4b. Fences: front-yard fences and side privacy fences between houses ------------------------
-    _place_yard_fences(D, houses, all_bldg, porch_union, drive_union, unary_union(D.ground["walk"] or [Polygon()]),
-                       unary_union([road, sidewalk]), site, playable)
+    # 4b. Fences along the approximate lot lines -----------------------------------------------------
+    front_of = {b.osm_id: b.dress["_front"][:8] for b in dressed if "_front" in b.dress}  # type: ignore[attr-defined]
+    alley_lines = [LineString(w.coords) for w in osm.ways.values()
+                   if w.tags.get("highway") == "service" and w.tags.get("service") == "alley" and len(w.coords) > 1]
+    alleys = unary_union(alley_lines).intersection(area.buffer(60)) if alley_lines else Polygon()
+    local = area.buffer(60)
+    _place_yard_fences(D, houses, D.lots, D.custom_lots, {b.osm_id for b in dressed}, front_of,
+                       all_bldg.intersection(local.buffer(40)), drive_union, unary_union(D.ground["walk"] or [Polygon()]),
+                       unary_union([road, sidewalk]).intersection(local.buffer(40)), site, alleys, area.buffer(8))
     fence_zone = unary_union([ln.buffer(0.7) for _, _, ln in D.fences]) if D.fences else Polygon()
 
     # 5. Trees and shrubs ---------------------------------------------------------------------------
@@ -680,74 +689,134 @@ def _place_street_parking(D: Dressing, inside: LineString, main_w: float, road, 
     D.notes.append(f"street parking: {count} cars")
 
 
-def _first_hit(origin: tuple[float, float], direction: tuple[float, float], obstacles, max_d: float) -> float | None:
-    """Distance from origin along direction to the first point inside obstacles (None if no hit)."""
-    ox, oz = origin
-    ray = LineString([(ox, oz), (ox + direction[0] * max_d, oz + direction[1] * max_d)])
-    hit = ray.intersection(obstacles)
-    if hit.is_empty:
-        return None
-    return min(Point(ox, oz).distance(g) for g in getattr(hit, "geoms", [hit]))
+def compute_lots(buildings: list[Building], region: Polygon, street, playable) -> dict[int, Polygon]:
+    """Approximate property lots: land split by nearest building (Voronoi of the footprint outlines),
+    garages/sheds merged into the nearest house's lot, streets + sidewalks cut away. Keyed by OSM id.
+    OSM has no parcels; this is what the fences follow, so neighbors' fences always meet."""
+    near = [b for b in buildings if b.poly.intersects(region)]
+    small = [b for b in near if b.poly.area < HOUSE_MIN_AREA or b.kind in ("garage", "garages", "shed", "carport")]
+    big = [b for b in near if b not in small]
+    owner: dict[int, int] = {b.osm_id: b.osm_id for b in big}
+    for g in small:  # a garage belongs to the closest bigger building within 25 m
+        best = min(big, key=lambda h: h.poly.distance(g.poly), default=None)
+        owner[g.osm_id] = best.osm_id if best is not None and best.poly.distance(g.poly) < 25 else g.osm_id
+    pts, ids = [], []
+    for b in near:
+        ring = shapely.segmentize(b.poly.exterior, 1.0)
+        for x, z in list(ring.coords)[:-1]:
+            pts.append((x, z))
+            ids.append(owner[b.osm_id])
+    env = region.envelope.buffer(20)
+    cells = shapely.voronoi_polygons(shapely.MultiPoint(pts), extend_to=env, ordered=True)
+    by_owner: dict[int, list] = {}
+    for cell, oid in zip(cells.geoms, ids):
+        by_owner.setdefault(oid, []).append(cell)
+    land = playable.intersection(env).difference(street.intersection(env).buffer(0.45))
+    # Real lot lines are straight: simplify the cells as a coverage (shared edges stay identical).
+    oids = list(by_owner)
+    merged = [unary_union(by_owner[o]) for o in oids]
+    merged = list(shapely.coverage_simplify(merged, LOT_LINE_TOLERANCE, simplify_boundary=False))
+    lots: dict[int, Polygon] = {}
+    home = {b.osm_id: b for b in near}
+    for oid, cell in zip(oids, merged):
+        b = home[oid]
+        lot = shapely.make_valid(cell).intersection(land)
+        parts = [q for q in polygons_of(lot) if q.area > 1]
+        if parts:
+            lots[oid] = max(parts, key=lambda q: q.intersection(b.poly).area)
+    return lots
 
 
-def _keep_piece(geom, touching=None, min_len: float = 0.8) -> list[LineString]:
-    """Line pieces of geom at least min_len long (optionally only those touching `touching`)."""
+def _lines_of(geom, min_len: float = 0.8) -> list[LineString]:
     out = []
     for g in getattr(geom, "geoms", [geom]):
-        if isinstance(g, LineString) and g.length >= min_len and (touching is None or g.distance(touching) < 0.6):
+        if isinstance(g, LineString) and g.length >= min_len:
             out.append(g)
+        elif isinstance(g, MultiLineString):
+            out.extend(q for q in g.geoms if q.length >= min_len)
     return out
 
 
-def _place_yard_fences(D: Dressing, houses, buildings, porches_all, drives_all, walks_all, street_all, site_all,
-                       playable) -> None:
-    """Front-yard fences (picket / chain-link / iron / cedar, with a gap at the walk and the driveway)
-    and tall wood privacy fences from a house's side to its neighbor (closing off the back yard)."""
+def _place_yard_fences(D: Dressing, houses, lots: dict[int, Polygon], skip_lots: set[int], dressed_ids: set[int],
+                       front_of: dict[int, tuple], buildings, drives, walks, street, site, alleys, region) -> None:
+    """Fences along the approximate lot lines (compute_lots):
+      - fenced front yards (picket / chain link / iron / cedar): the lot in front of the house, closed back
+        to the house walls, with a gate at the walk and a gap at the driveway;
+      - tall wood privacy fences on every lot line shared with a neighbor behind the house fronts
+        (back yards), and along alleys."""
     names = list(FENCE_KINDS)
     weights = [FENCE_KINDS[n][0] for n in names]
-    inner = playable.buffer(-0.4)
-    for b, info in houses:
-        if "_front" not in info:
-            continue
-        fx, fz, sx, sz, smin, smax, fmin, fmax, fw = info["_front"]
-        rng = random.Random(b.osm_id * 17 + 3)
-        # Work on a local window: buffering the whole map's streets per house is slow.
-        win = b.poly.envelope.buffer(30.0)
-        others = buildings.intersection(win).difference(b.poly.buffer(0.05))
-        street = street_all.intersection(win)
-        drives = drives_all.intersection(win)
-        walks = walks_all.intersection(win)
-        porches = porches_all.intersection(win)
-        site = site_all.intersection(win)
+    placed: list[LineString] = []
+
+    def front_zone(oid: int):
+        fr = front_of.get(oid)
+        if fr is None or oid not in lots:
+            return Polygon()
+        fx, fz, sx, sz, smin, smax, fmin, fmax = fr
         W = lambda s, f: (sx * s + fx * f, sz * s + fz * f)  # noqa: E731
-        blocked_front = unary_union([others.buffer(1.0), porches.buffer(0.3), street.buffer(0.35), site.buffer(0.5)])
+        # Lot width just in front of the house; the yard is a strip perpendicular to the street (real front
+        # fences run straight back from the sidewalk, even where the approximate lot lines are diagonal).
+        probe = LineString([W(smin - 30, fmax + 1.0), W(smax + 30, fmax + 1.0)]).intersection(lots[oid])
+        s_lo, s_hi = smin - 1.0, smax + 1.0
+        for g in getattr(probe, "geoms", [probe]):
+            if isinstance(g, LineString) and not g.is_empty:
+                ss = [x * sx + z * sz for x, z in g.coords]
+                if min(ss) <= (smin + smax) / 2 <= max(ss):
+                    s_lo, s_hi = max(min(ss), smin - 6.0), min(max(ss), smax + 6.0)
+        half = Polygon([W(s_lo, fmax - 1.0), W(s_hi, fmax - 1.0), W(s_hi, fmax + 200), W(s_lo, fmax + 200)])
+        return lots[oid].intersection(half)
 
-        # Front yard fence: just behind the sidewalk, across the lot, with returns back to the house.
-        if rng.random() < FRONT_FENCE_CHANCE:
-            door = info.get("door")
-            probe_from = door if door else W((smin + smax) / 2, fmax)
-            hit = _first_hit((probe_from[0], probe_from[1]), (fx, fz), street, 30.0)
-            if hit is not None and hit > 3.0:
-                f_line = probe_from[0] * fx + probe_from[1] * fz + hit - 0.45
-                s0, s1 = smin - rng.uniform(1.5, 3.0), smax + rng.uniform(1.5, 3.0)
-                kind = rng.choices(names, weights)[0]
-                h = FENCE_KINDS[kind][1]
-                path = LineString([W(s0, fmax - 1.0), W(s0, f_line), W(s1, f_line), W(s1, fmax - 1.0)])
-                cut = unary_union([blocked_front, drives.buffer(0.3), walks.buffer(0.05)])
-                pieces = _keep_piece(path.difference(cut).intersection(inner))
-                for pc in pieces:
-                    D.fences.append((kind, h, pc.simplify(0.05)))
+    zones = {oid: front_zone(oid) for oid in lots}
+    blocked = unary_union([buildings.buffer(0.3), drives.buffer(0.3), site.buffer(0.5)])
 
-        # Side privacy fence on the +s side, a few meters behind the front wall, out to the neighbor.
-        if rng.random() < SIDE_FENCE_CHANCE:
-            f_line = fmax - min(3.0, 0.4 * (fmax - fmin))
-            # From inside the house outward: the piece that starts at this house's wall.
-            path = LineString([W((smin + smax) / 2, f_line), W(smax + SIDE_FENCE_MAX, f_line)])
-            cut = unary_union([b.poly.buffer(0.02), others.buffer(0.3), drives.buffer(0.3), street.buffer(1.0),
-                               site.buffer(0.5)])
-            pieces = _keep_piece(path.difference(cut).intersection(inner), touching=b.poly, min_len=1.5)
-            for pc in pieces:
-                D.fences.append(("wood", PRIVACY_FENCE_HEIGHT, pc))
+    def add(kind: str, h: float, geom, cut) -> None:
+        g = geom.difference(cut).intersection(region)
+        if placed:
+            g = g.difference(unary_union(placed).buffer(0.25))
+        for ln in _lines_of(shapely.line_merge(g) if not g.is_empty else g):
+            ln = ln.simplify(0.35)  # lot lines follow sidewalk corners: drop the jitter
+            if ln.length < 0.8:
+                continue
+            placed.append(ln)
+            D.fences.append((kind, h, ln))
+
+    # Front yards
+    for b, info in houses:
+        if b.osm_id not in lots or b.osm_id in skip_lots:
+            continue
+        rng = random.Random(b.osm_id * 17 + 3)
+        if rng.random() >= FRONT_FENCE_CHANCE:
+            continue
+        z = zones[b.osm_id]
+        # Only yards that reach the street (not back-lot cottages behind another house).
+        if z.is_empty or z.distance(street) > 1.0:
+            continue
+        kind = rng.choices(names, weights)[0]
+        ring = unary_union([LineString(q.exterior.coords) for q in polygons_of(z)])
+        add(kind, FENCE_KINDS[kind][1], ring, unary_union([b.poly.buffer(0.05), blocked, walks.buffer(0.05)]))
+
+    # Back yards: shared lot lines behind both fronts, and alley edges.
+    ids = [i for i in lots if i not in skip_lots]
+    tree = shapely.STRtree([lots[i] for i in ids])
+    back_cut = unary_union([blocked, street.buffer(0.3), walks.buffer(0.05)])
+    for k, i in enumerate(ids):
+        for j_idx in tree.query(lots[i].buffer(0.1)):
+            j = ids[int(j_idx)]
+            if j <= i or (i not in dressed_ids and j not in dressed_ids):
+                continue
+            if random.Random(i * 31 + j).random() >= SIDE_FENCE_CHANCE:
+                continue
+            shared = lots[j].boundary.intersection(lots[i].buffer(0.05))
+            if shared.is_empty:
+                continue
+            add("wood", PRIVACY_FENCE_HEIGHT, shared, unary_union([back_cut, zones[i].buffer(0.05), zones[j].buffer(0.05)]))
+    if not alleys.is_empty:
+        for i in ids:
+            if i not in dressed_ids:
+                continue
+            edge = lots[i].boundary.intersection(alleys.buffer(3.2))
+            if not edge.is_empty:
+                add("wood", PRIVACY_FENCE_HEIGHT, edge, unary_union([blocked, zones[i].buffer(0.05)]))
 
 
 def face(fx: float, fz: float) -> float:
